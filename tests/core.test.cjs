@@ -153,6 +153,48 @@ test('deduplicates stream endpoints and ignores empty URLs', () => {
   assert.deepEqual(core.streamChoices(streams).map(stream => stream.url), ['/a', '/b']);
 });
 
+test('native photo entries preserve real IDs, metadata and original image paths', () => {
+  const original = { ...image('1'), rating100: 80, o_counter: 4, tags: [{ id: '2', name: 'Example' }] };
+  const [entry] = core.nativeEntries(core.toMedia([original], [], '10'));
+  assert.equal(entry.id, '1');
+  assert.equal(entry.rating100, 80);
+  assert.equal(entry.o_counter, 4);
+  assert.deepEqual(entry.tags, original.tags);
+  assert.equal(entry.paths.image, original.paths.image);
+  assert.equal(entry.paths.preview, '');
+  assert.equal(original._gsNative, undefined, 'do not mutate server data');
+});
+
+test('native video slides have no image ID and cannot target an unrelated image', () => {
+  const original = scene('1');
+  original.paths.stream = '/scene/1/stream';
+  const entries = core.nativeEntries(core.toMedia([image('1')], [original], '10'));
+  assert.equal(entries[0].id, '1');
+  assert.equal(entries[1].id, undefined);
+  assert.equal(entries[1]._gsNative.id, '1');
+  assert.equal(entries[1].visual_files[0].__typename, 'VideoFile');
+  assert.equal(entries[1].rating100, undefined);
+  assert.equal(entries[1].o_counter, undefined);
+  assert.equal(entries[1].paths.image, '/scene/1/stream#gs-scene=1');
+  const cards = core.gridEntries(entries);
+  assert.equal(cards[1].id, 'gs-video:1');
+  assert.equal(entries[1].id, undefined, 'display keys must not leak into lightbox entries');
+});
+
+test('video markers are round-trippable and cannot be confused with normal photo paths', () => {
+  const id = 'scene & 1';
+  assert.equal(core.sceneIdFromURL(core.markVideoURL('/stream?a=b', id)), id);
+  assert.equal(core.sceneIdFromURL('/image/1'), null);
+  assert.equal(core.sceneIdFromURL('/stream#gs-scene=%INVALID'), null);
+  assert.equal(core.markVideoURL('', '1'), 'about:blank#gs-scene=1');
+});
+
+test('video slide paths stay unique and preserve each scene identity', () => {
+  const entries = core.nativeEntries(core.toMedia([], [scene('1'), scene('2')], '10'));
+  assert.notEqual(entries[0].paths.image, entries[1].paths.image);
+  assert.notEqual(core.gridEntries(entries)[0].id, core.gridEntries(entries)[1].id);
+});
+
 const schemaDirectory = process.env.STASH_SCHEMA_DIR || path.resolve(__dirname, '../../stash/graphql/schema');
 test('queries validate against the reference Stash GraphQL schema', {
   skip: !process.env.STASH_SCHEMA_DIR && !fs.existsSync(schemaDirectory) &&

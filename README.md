@@ -24,24 +24,27 @@ A grade passa a mostrar:
 
 - Mantém as imagens que já pertencem à galeria.
 - Consulta os vídeos da **pasta exata** da galeria, por ID de pasta; não usa comparação parcial de caminhos nem inclui subpastas.
-- Não grava associações, não altera metadados e não acessa diretamente o banco ou os arquivos do servidor.
-- Oferece busca, filtro por tipo, ordenação natural por caminho/título e paginação mista.
-- Abre imagens e vídeos em um modal, com navegação anterior/próxima.
-- Usa os streams fornecidos pelo Stash, com seletor de formatos quando disponíveis.
-- Mantém um botão **Grade original**, para usar as ferramentas nativas de edição, seleção, capas e remoção.
+- A consulta não grava associações nem altera metadados e não acessa diretamente o banco ou os arquivos do servidor.
+- Reutiliza os **cards, mural e paginação originais** do Stash; permite mudar o tamanho das miniaturas.
+- Abre fotos e vídeos no **lightbox nativo**, com as setas na tela e as teclas **← / →**, inclusive entre páginas. **Esc** fecha o visualizador.
+- Mantém os controles originais das fotos: zoom, configurações, avaliação e demais ações disponíveis na versão do Stash. Ações que você executar nessas ferramentas continuam alterando os dados normalmente.
+- Nos vídeos, habilita os controles HTML5 e o seletor de streams, sem substituir o visualizador das fotos.
+- Vídeos não recebem IDs de imagens: avaliação, exclusão e atalhos de imagens não são aplicados a cenas.
+- Oferece busca, filtro por tipo e ordenação natural por caminho/título na lista mista.
+- Mantém o botão **Ferramentas originais**, para seleção, filtros avançados, edição em lote, capas e remoção na galeria nativa.
 
 A aba nativa pode continuar se chamando **Images/Imagens**. Seu conteúdo recebe a grade mista; o plugin não adiciona uma aba de cenas.
 
 ## Requisitos e compatibilidade
 
-- Stash com `PluginApi.patch.instead`, o ponto de extensão **`GalleryImagesPanel`**, Apollo e React Bootstrap expostos pela API de plugins.
+- Stash com `PluginApi.patch.instead`/`after`, os pontos de extensão **`GalleryImagesPanel`**, **`ImageList`**, **`ImageCard`**, **`ImageCard.Image`**, os componentes nativos de paginação e ReactDOM/Apollo expostos pela API de plugins.
 - Uma galeria **baseada em pasta** (`Gallery.folder`). Galerias ZIP e galerias sem pasta física mantêm a interface original.
 - Os vídeos precisam ter sido indexados pelo scan do Stash. Confira se a pasta da biblioteca não está configurada para excluir vídeos.
 - A API GraphQL deve oferecer `Image.visual_files`, `SceneFilterType.files_filter`, `FileFilterType.parent_folder` e `Scene.sceneStreams`.
 
 **Referências verificadas:** Stash **v0.31.1** e branch `develop`, commit `bdee3c8`. O ponto de extensão foi conferido no código da versão estável e as consultas foram validadas contra os dois schemas GraphQL. A interface tem testes automatizados com React 17 e uma API de host simulada; a reprodução real e a integração com a versão instalada ainda precisam ser testadas no seu Stash. Não há garantia de compatibilidade com todas as versões ou com outros plugins que substituam a mesma grade.
 
-O plugin usa a API de interface experimental do Stash; atualizações podem exigir ajustes. Ao abrir uma galeria, você pode verificar o ponto de extensão no console do navegador:
+O plugin usa a API de interface experimental do Stash; atualizações podem exigir ajustes. Como o lightbox não expõe um ponto de extensão específico para controles de vídeo, uma integração de DOM limitada às mídias do plugin habilita esses controles e pausa o vídeo ao sair dele. A renderização e as ações das fotos permanecem nativas. Ao abrir uma galeria, você pode verificar o ponto de extensão no console do navegador:
 
 ```js
 typeof window.PluginApi?.components?.GalleryImagesPanel
@@ -105,16 +108,18 @@ Se instalou pela interface, use o gerenciador de plugins do Stash para verificar
 
 Para remover, desabilite o plugin ou remova a pasta `gallery-stashapp` do diretório de plugins, recarregue os plugins e a página. Como não existem alterações no banco, não há migração ou limpeza de vínculos.
 
-## Limites desta primeira versão
+## Limites atuais
 
 - Não cria galerias novas para pastas que só tenham vídeos; melhora a visualização de galerias de pasta que já existem.
 - Não inclui vídeos de subpastas, ZIPs ou arquivos que ainda não foram indexados.
 - Os dados são recarregados ao abrir a grade ou clicar em **Atualizar**. Se executar um scan com a galeria aberta, clique nesse botão depois.
 - Busca e ordenação são locais: as mídias são consultadas em lotes de 250 registros, e só a página visível renderiza miniaturas. Galerias muito grandes ainda precisam carregar seus metadados completos para ordenar e paginar fotos e vídeos juntos.
 - O visualizador usa o player HTML5 do navegador. MP4/WebM e outros formatos dependem do navegador e da configuração de streaming/FFmpeg do Stash. HLS/DASH não recebem uma biblioteca adicional de reprodução; selecione um stream compatível quando necessário.
-- Não implementa os recursos avançados do player nativo, capítulos, slideshow, contagem de reprodução ou histórico de progresso. O Stash pode gerar/transcodificar mídia ao atender streams, conforme sua configuração.
+- O lightbox e seu slideshow são os originais do Stash. No modo misto, os capítulos são omitidos porque os índices dos capítulos originais contam somente imagens. O slideshow continua usando o intervalo nativo, não a duração dos vídeos.
+- Não implementa os recursos avançados do player de cenas, contagem de reprodução ou histórico de progresso de vídeos. O Stash pode gerar/transcodificar mídia ao atender streams, conforme sua configuração.
 - Se uma cena possui múltiplos arquivos/versões, basta um arquivo estar na pasta para aparecer; a reprodução usa a versão escolhida pelo próprio Stash.
-- As operações nativas de seleção, edição em lote, definição de capa e remoção permanecem disponíveis em **Grade original**.
+- O modo misto é somente de visualização na grade (sem seleção em lote), mas mantém as ações nativas disponíveis nas fotos dentro do lightbox. A lista é atualizada ao fechar esse visualizador para refletir alterações.
+- A barra de busca/filtros da lista mista não é a barra completa de filtros avançados do Stash. As operações nativas de seleção, filtros avançados, edição em lote, definição de capa e remoção permanecem disponíveis em **Ferramentas originais**.
 
 ## Diagnóstico
 
@@ -124,9 +129,9 @@ Para remover, desabilite o plugin ou remova a pasta `gallery-stashapp` do diret�
 
 **Aparecem somente fotos:** confira se a galeria é baseada em pasta e se os vídeos foram indexados nessa pasta exata, sem exclusões. Clique em **Atualizar** depois do scan.
 
-**Erro de GraphQL/campo desconhecido:** use **Grade original** e informe a versão do Stash e a mensagem exibida. A versão instalada pode não oferecer o schema esperado.
+**Erro de GraphQL/campo desconhecido:** use **Ferramentas originais** e informe a versão do Stash e a mensagem exibida. A versão instalada pode não oferecer o schema esperado.
 
-**Vídeo não reproduz:** tente outro stream no seletor; confira FFmpeg e streaming nas configurações do Stash. O link **Abrir detalhes** permite conferir a reprodução no player nativo.
+**Vídeo não reproduz:** tente outro stream no seletor do rodapé; confira FFmpeg e streaming nas configurações do Stash. As teclas ←/→ continuam navegando entre as mídias; use os controles do vídeo para avançar dentro dele.
 
 ## Desenvolvimento e testes
 
@@ -138,7 +143,7 @@ npm run check
 npm test
 ```
 
-Os testes cobrem consulta paginada, seleção da pasta exata, mídia mista, ordenação, filtros, cancelamento, troca de galeria, erros, retorno à interface original e abertura do visualizador.
+Os testes cobrem consulta paginada, seleção da pasta exata, mídia mista, ordenação, filtros, cancelamento, troca de galeria, erros, retorno à interface original, integração com os componentes nativos e navegação foto → vídeo → foto por teclado/setas, incluindo troca de página. Também verificam que IDs de cenas nunca são fornecidos às ações de imagens. O host de interface é simulado nos testes; zoom, gestos, reprodução e foco devem ser conferidos no navegador com o Stash real.
 
 Para validar também as consultas contra um checkout do schema do Stash:
 
@@ -164,11 +169,12 @@ O pacote é reproduzível, inclui somente os arquivos de execução e a licença
 1. Use uma galeria de teste com pelo menos uma foto e um vídeo na mesma pasta.
 2. Indexe a pasta, abra a galeria e confira fotos e vídeos na mesma grade.
 3. Verifique que um vídeo de uma subpasta não aparece.
-4. Abra uma foto, avance para um vídeo e teste reprodução e fechamento do modal.
-5. Teste busca, tipos, ordenação, paginação e o botão **Grade original**.
-6. Execute um scan com mídia nova e clique em **Atualizar**.
-7. Abra uma galeria ZIP: ela deve manter a interface original.
-8. Desabilite o plugin e recarregue a página: a interface original deve voltar sem mudanças nos dados.
+4. Abra uma foto: confira o lightbox original, seu zoom, configurações e ações de imagem.
+5. Use ←/→ e as setas da tela para navegar foto → vídeo → foto, inclusive entre páginas. Nos vídeos, confira os controles, o stream e que não existem ações de excluir/avaliar imagem; o vídeo deve pausar ao sair dele.
+6. Teste **Esc**, grade/mural, tamanho das miniaturas, busca, tipos, ordenação, paginação e **Ferramentas originais**.
+7. Execute um scan com mídia nova e clique em **Atualizar**.
+8. Abra uma galeria ZIP: ela deve manter a interface original.
+9. Desabilite o plugin e recarregue a página: a interface original deve voltar sem mudanças nos dados (exceto alterações que você tenha feito voluntariamente nas ações nativas).
 
 ## Licença
 

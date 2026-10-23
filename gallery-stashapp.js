@@ -1,22 +1,21 @@
-/* Runs inside Stash, using the React and Apollo instances exposed by PluginApi. */
+/* Reuse Stash's image cards, wall, pagination and native lightbox. */
 (function () {
   "use strict";
   const api = window.PluginApi;
   const core = window.GalleryStashappCore;
   if (window.__galleryStashappLoaded) return;
-  if (!api?.patch?.instead || !api.React || !api.libraries?.Apollo?.gql ||
-      !api.utils?.StashService?.getClient || !api.libraries?.Bootstrap?.Modal ||
-      !api.libraries?.ReactRouterDOM?.Link || !core) {
+  if (!api?.patch?.instead || !api.patch.after || !api.React ||
+      !api.ReactDOM?.createPortal || !api.libraries?.Apollo?.gql ||
+      !api.utils?.StashService?.getClient || !core) {
     console.error("[gallery-stashapp] PluginApi incompatível. A interface original foi preservada.");
     return;
   }
   window.__galleryStashappLoaded = true;
   const React = api.React;
   const h = React.createElement;
-  const { useEffect, useMemo, useState } = React;
-  const { Modal } = api.libraries.Bootstrap;
-  const { Link } = api.libraries.ReactRouterDOM;
+  const { useCallback, useEffect, useMemo, useRef, useState } = React;
   const documents = new Map();
+  const EMPTY_SELECTION = new Set();
 
   async function query(document, variables, signal) {
     if (!documents.has(document)) documents.set(document, api.libraries.Apollo.gql(document));
@@ -28,101 +27,151 @@
     return result.data;
   }
 
-  function MediaViewer({ item, onClose, onPrevious, onNext, position, total }) {
+  function VideoControls({ video, entry, footer, center }) {
     const [streams, setStreams] = useState([]);
     const [source, setSource] = useState("");
     const [error, setError] = useState("");
-    const [loading, setLoading] = useState(item.kind === "video");
+    const [loading, setLoading] = useState(true);
+
+    function applySource(url) {
+      setError("");
+      setSource(url);
+      video.src = core.markVideoURL(url, entry._gsNative.id);
+      const playing = video.play();
+      playing?.catch(() => {}); // Autoplay may be blocked; native controls remain available.
+    }
 
     useEffect(() => {
-      if (item.kind !== "video") return;
       const controller = new AbortController();
       let cancelled = false;
-      query(core.QUERIES.streams, { id: item.id }, controller.signal).then((data) => {
+      function onError() { setError("Formato indisponível. Tente outro stream."); }
+      video.addEventListener("error", onError);
+      query(core.QUERIES.streams, { id: entry._gsNative.id }, controller.signal).then((data) => {
         if (cancelled) return;
         const choices = core.streamChoices(data?.findScene?.sceneStreams);
         if (!choices.length) throw new Error("O Stash não disponibilizou um stream para este vídeo.");
-        const video = document.createElement("video");
         const preferred = choices.find((choice) => choice.mime_type && video.canPlayType(choice.mime_type)) ||
           choices.find((choice) => choice.mime_type === "video/mp4") || choices[0];
         setStreams(choices);
-        setSource(preferred.url);
         setLoading(false);
+        applySource(preferred.url);
       }).catch((cause) => {
-        if (!cancelled) {
-          setError(cause.message || "Não foi possível carregar o vídeo.");
-          setLoading(false);
-        }
+        if (!cancelled) { setError(cause.message || "Não foi possível carregar o vídeo."); setLoading(false); }
       });
-      return () => { cancelled = true; controller.abort(); };
-    }, [item.id, item.kind]);
+      return () => {
+        cancelled = true;
+        controller.abort();
+        video.removeEventListener("error", onError);
+      };
+    }, [video, entry._gsNative.id]);
 
-    function onKeyDown(event) {
-      // Keep native video seek keys and form controls working normally.
-      if (["VIDEO", "INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName)) return;
-      if (event.key === "ArrowLeft" && onPrevious) { event.preventDefault(); onPrevious(); }
-      if (event.key === "ArrowRight" && onNext) { event.preventDefault(); onNext(); }
-    }
-
-    return h(Modal, {
-      show: true, onHide: onClose, size: "xl", centered: true,
-      className: "gs-media-modal", onKeyDown, "aria-labelledby": "gs-viewer-title",
-    },
-    h(Modal.Header, { closeButton: true },
-      h(Modal.Title, { id: "gs-viewer-title" }, item.title)),
-    h(Modal.Body, null,
-      loading && h("p", { role: "status" }, "Carregando vídeo…"),
-      error && h("p", { role: "alert", className: "gs-error" }, error),
-      item.kind === "image"
-        ? (item.source ? h("img", {
-          className: "gs-full-image", src: item.source, alt: item.title,
-          onError: () => setError("Não foi possível carregar a imagem."),
-        }) : h("p", { role: "alert" }, "Imagem indisponível."))
-        : (source && h("video", {
-          key: source, className: "gs-player", src: source, poster: item.thumbnail || undefined,
-          controls: true, playsInline: true, preload: "metadata",
-          onError: () => setError("O navegador não reproduziu este formato. Selecione outro stream abaixo."),
-        }))),
-    h(Modal.Footer, null,
-      h("span", { className: "gs-viewer-position" }, `${position} / ${total}`),
-      streams.length > 1 && h("label", { className: "gs-stream-label" }, "Stream ",
-        h("select", {
-          className: "form-control form-control-sm", value: source,
-          onChange: (event) => { setError(""); setSource(event.target.value); },
+    return h(React.Fragment, null,
+      center && api.ReactDOM.createPortal(h("span", { className: "gs-native-video-title" }, entry.title), center),
+      footer && api.ReactDOM.createPortal(h("div", { className: "gs-native-video-controls" },
+        loading && h("small", { role: "status" }, "Carregando vídeo…"),
+        error && h("small", { role: "alert", className: "gs-error" }, error),
+        streams.length > 1 && h("label", null, "Stream ", h("select", {
+          className: "form-control form-control-sm", value: source, "aria-label": "Stream do vídeo",
+          onKeyDown: (event) => event.stopPropagation(),
+          onChange: (event) => applySource(event.target.value),
         }, streams.map((stream, index) => h("option", { key: stream.url, value: stream.url },
-          stream.label || stream.mime_type || `Formato ${index + 1}`)))),
-      h(Link, {
-        to: `/${item.kind === "video" ? "scenes" : "images"}/${item.id}`,
-        className: "btn btn-link", onClick: onClose,
-      }, "Abrir detalhes"),
-      h("button", { type: "button", className: "btn btn-secondary", disabled: !onPrevious,
-        onClick: onPrevious, "aria-label": "Mídia anterior" }, "← Anterior"),
-      h("button", { type: "button", className: "btn btn-secondary", disabled: !onNext,
-        onClick: onNext, "aria-label": "Próxima mídia" }, "Próxima →")));
+          stream.label || stream.mime_type || `Formato ${index + 1}`))))), footer));
   }
 
-  function MediaCard({ item, onOpen }) {
-    const [broken, setBroken] = useState(false);
-    return h("button", {
-      type: "button", className: "gs-card", onClick: onOpen,
-      title: item.path || item.title,
-      "aria-label": `${item.kind === "video" ? "Reproduzir vídeo" : "Abrir imagem"}: ${item.title}`,
-    },
-    h("span", { className: "gs-card-preview" },
-      item.thumbnail && !broken
-        ? h("img", { src: item.thumbnail, alt: "", loading: "lazy", onError: () => setBroken(true) })
-        : h("span", { className: "gs-placeholder", "aria-hidden": true }, item.kind === "video" ? "▶" : "▧"),
-      item.kind === "video" && h("span", { className: "gs-play", "aria-hidden": true }, "▶"),
-      item.kind === "video" && core.formatDuration(item.duration) &&
-        h("span", { className: "gs-duration" }, core.formatDuration(item.duration))),
-    h("span", { className: "gs-card-title" }, item.title),
-    h("span", { className: "gs-card-kind" }, item.kind === "video" ? "Vídeo" : "Imagem"));
+  // The native lightbox is not a patchable component. Its normal image rendering
+  // stays untouched. This small, scoped bridge only enables controls on our video
+  // slides, suppresses image-only links and pauses videos when navigation leaves them.
+  function NativeVideoBridge({ entries }) {
+    const [active, setActive] = useState(null);
+    const activeRef = useRef(null);
+    const entriesRef = useRef(entries);
+    entriesRef.current = entries;
+
+    useEffect(() => {
+      let disposed = false;
+      let releaseVideo = () => {};
+      let lightbox = null;
+      let serial = 0;
+
+      function synchronize() {
+        if (disposed) return;
+        const box = document.querySelector(".Lightbox");
+        const carousel = box?.querySelector(".Lightbox-carousel");
+        const index = carousel ? Math.round(-(parseFloat(carousel.style.left) || 0) / 100) : -1;
+        const slot = index >= 0 ? carousel.children[index] : null;
+        const video = slot?.querySelector("video");
+        const id = core.sceneIdFromURL(video?.getAttribute("src"));
+        const entry = id ? entriesRef.current.find((image) => image._gsNative?.kind === "video" && image._gsNative.id === id) : null;
+        const current = entry ? video : null;
+        if (activeRef.current?.video === current) return;
+        releaseVideo();
+        releaseVideo = () => {};
+        lightbox?.classList.remove("gs-native-video-active");
+        lightbox = box;
+        activeRef.current = current ? { video: current } : null;
+        if (!current) { setActive(null); return; }
+
+        box.classList.add("gs-native-video-active");
+        const oldControls = current.controls;
+        const oldPoster = current.getAttribute("poster");
+        current.controls = true;
+        current.playsInline = true;
+        current.poster = entry.paths.thumbnail.split("#")[0];
+        // Native image click/drag handlers must not consume the player's controls.
+        const stop = (event) => event.stopPropagation();
+        const events = ["mousedown", "mouseup", "click", "touchstart", "touchmove", "pointerdown", "pointermove", "pointerup"];
+        events.forEach((name) => current.addEventListener(name, stop));
+        releaseVideo = () => {
+          current.pause();
+          current.controls = oldControls;
+          if (oldPoster === null) current.removeAttribute("poster");
+          else current.setAttribute("poster", oldPoster);
+          events.forEach((name) => current.removeEventListener(name, stop));
+        };
+        setActive({ video: current, entry, serial: ++serial,
+          footer: box.querySelector(".Lightbox-footer-right"),
+          center: box.querySelector(".Lightbox-footer-center") });
+      }
+
+      function onKeyDown(event) {
+        if (activeRef.current?.video === event.target && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+          event.preventDefault(); // Keep native lightbox navigation, not video seeking.
+        }
+      }
+      function onClick(event) {
+        if (activeRef.current && event.target.closest?.(".Lightbox-footer-center a.image-link")) {
+          event.preventDefault();
+          event.stopPropagation(); // A scene has no /images/:id destination.
+        }
+      }
+      function onPlay(event) {
+        if (core.sceneIdFromURL(event.target.getAttribute?.("src")) && event.target !== activeRef.current?.video) {
+          event.target.pause();
+        }
+      }
+      const observer = new MutationObserver(synchronize);
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
+      document.addEventListener("keydown", onKeyDown, true);
+      document.addEventListener("click", onClick, true);
+      document.addEventListener("play", onPlay, true);
+      synchronize();
+      return () => {
+        disposed = true;
+        observer.disconnect();
+        releaseVideo();
+        lightbox?.classList.remove("gs-native-video-active");
+        activeRef.current = null;
+        document.removeEventListener("keydown", onKeyDown, true);
+        document.removeEventListener("click", onClick, true);
+        document.removeEventListener("play", onPlay, true);
+      };
+    }, []);
+    return active ? h(VideoControls, { key: active.serial, ...active }) : null;
   }
 
   function MixedGallery({ original, originalProps }) {
     const { gallery, active } = originalProps;
     const folderId = gallery?.folder?.id;
-    const supported = Boolean(folderId);
     const [native, setNative] = useState(false);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -134,15 +183,16 @@
     const [descending, setDescending] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(40);
-    const [selected, setSelected] = useState(null);
+    const [displayMode, setDisplayMode] = useState(0); // Native DisplayMode.Grid / Wall.
+    const [zoomIndex, setZoomIndex] = useState(1);
+    const [slideshowRunning, setSlideshowRunning] = useState(false);
 
     useEffect(() => {
-      if (!supported || native || active === false) return;
+      if (!folderId || native || active === false) return;
       const controller = new AbortController();
       let cancelled = false;
       setLoading(true);
       setError("");
-      setSelected(null);
       core.loadMedia(query, gallery.id, folderId, controller.signal).then((media) => {
         if (!cancelled) { setItems(media); setLoading(false); }
       }).catch((cause) => {
@@ -150,79 +200,85 @@
         if (!cancelled) { setError(cause.message || "Não foi possível carregar as mídias."); setLoading(false); }
       });
       return () => { cancelled = true; controller.abort(); };
-    }, [gallery.id, folderId, gallery.updated_at, supported, native, active, revision]);
+    }, [gallery.id, folderId, gallery.updated_at, native, active, revision]);
 
     const filtered = useMemo(() => core.selectMedia(items, { search, kind, sort, descending }),
       [items, search, kind, sort, descending]);
     const paged = core.paginate(filtered, page, pageSize);
-    const selectedIndex = filtered.findIndex((item) => item.key === selected);
+    const entries = useMemo(() => core.nativeEntries(core.paginate(filtered, paged.page, pageSize).items),
+      [filtered, paged.page, pageSize]);
+    const filter = useMemo(() => ({ displayMode, zoomIndex, currentPage: paged.page,
+      itemsPerPage: pageSize, sortBy: sort, sortDirection: descending ? "DESC" : "ASC" }),
+    [displayMode, zoomIndex, paged.page, pageSize, sort, descending]);
+    const onSlideshowChange = useCallback((running) => {
+      setSlideshowRunning(running);
+      if (!running) setRevision((value) => value + 1); // Refresh edits/deletions made in the native viewer.
+    }, []);
     const imageCount = items.filter((item) => item.kind === "image").length;
     const videoCount = items.length - imageCount;
-
-    function change(setter, value) { setter(value); setPage(1); setSelected(null); }
-
+    const { ImageList, Pagination, PaginationIndex } = api.components || {};
+    function change(setter, value) { setter(value); setPage(1); }
     function pager() {
-      return h("div", { className: "gs-pagination", "aria-label": "Paginação de mídias" },
-        h("span", { "aria-live": "polite" }, `${paged.first}–${paged.last} de ${paged.total}`),
-        h("button", { type: "button", className: "btn btn-secondary btn-sm", disabled: paged.page <= 1,
-          onClick: () => setPage(paged.page - 1), "aria-label": "Página anterior" }, "←"),
-        h("span", null, `${paged.page} / ${paged.pages}`),
-        h("button", { type: "button", className: "btn btn-secondary btn-sm", disabled: paged.page >= paged.pages,
-          onClick: () => setPage(paged.page + 1), "aria-label": "Próxima página" }, "→"));
+      return h("div", { className: "pagination-index-container" },
+        h(Pagination, { currentPage: paged.page, itemsPerPage: pageSize,
+          totalItems: paged.total, onChangePage: setPage }),
+        h(PaginationIndex, { currentPage: paged.page, itemsPerPage: pageSize, totalItems: paged.total }));
     }
 
-    // Archives and galleries without a physical folder keep the native UI.
-    if (!supported) return h(original, originalProps);
+    if (!folderId) return h(original, originalProps);
+    if (!ImageList || !Pagination || !PaginationIndex) return h(React.Fragment, null,
+      h("p", { role: "alert", className: "alert alert-warning" },
+        "Esta versão do Stash não expõe a grade nativa necessária. Exibindo a galeria original."),
+      h(original, originalProps));
 
-    return h("section", { className: "gs-gallery", "aria-label": "Fotos e vídeos da galeria" },
+    return h("section", { className: "gs-gallery gs-native-gallery", "aria-label": "Fotos e vídeos da galeria" },
       h("header", { className: "gs-heading" },
-        h("div", null, h("h3", null, "Fotos e vídeos"),
-          h("small", { className: "gs-folder", title: gallery.folder.path }, gallery.folder.path)),
+        h("small", { className: "gs-folder", title: gallery.folder.path }, gallery.folder.path),
         h("button", { type: "button", className: "btn btn-outline-secondary btn-sm",
-          onClick: () => { setSelected(null); setNative(!native); } },
-        native ? "Mostrar fotos e vídeos" : "Grade original")),
+          onClick: () => setNative(!native) }, native ? "Mostrar fotos e vídeos" : "Ferramentas originais")),
       native ? h(original, originalProps) : h(React.Fragment, null,
         h("div", { className: "gs-toolbar" },
-          h("label", null, "Buscar", h("input", {
-            type: "search", className: "form-control form-control-sm", value: search,
-            placeholder: "Nome ou caminho…", onChange: (event) => change(setSearch, event.target.value),
-          })),
-          h("label", null, "Tipo", h("select", {
-            className: "form-control form-control-sm", value: kind,
-            onChange: (event) => change(setKind, event.target.value),
-          }, h("option", { value: "all" }, "Fotos e vídeos"),
-          h("option", { value: "image" }, "Só imagens"), h("option", { value: "video" }, "Só vídeos"))),
-          h("label", null, "Ordenar", h("select", {
-            className: "form-control form-control-sm", value: sort,
-            onChange: (event) => change(setSort, event.target.value),
-          }, h("option", { value: "path" }, "Caminho"), h("option", { value: "title" }, "Título"))),
+          h("input", { type: "search", className: "form-control form-control-sm", value: search,
+            "aria-label": "Buscar mídias", placeholder: "Buscar…",
+            onChange: (event) => change(setSearch, event.target.value) }),
+          h("select", { className: "form-control form-control-sm", value: kind, "aria-label": "Tipo de mídia",
+            onChange: (event) => change(setKind, event.target.value) },
+          h("option", { value: "all" }, "Fotos e vídeos"), h("option", { value: "image" }, "Só imagens"),
+          h("option", { value: "video" }, "Só vídeos")),
+          h("select", { className: "form-control form-control-sm", value: sort, "aria-label": "Ordenação",
+            onChange: (event) => change(setSort, event.target.value) },
+          h("option", { value: "path" }, "Caminho"), h("option", { value: "title" }, "Título")),
           h("button", { type: "button", className: "btn btn-secondary btn-sm", "aria-label": "Inverter ordenação",
             onClick: () => change(setDescending, !descending) }, descending ? "↓" : "↑"),
-          h("label", null, "Por página", h("select", {
-            className: "form-control form-control-sm", value: pageSize,
-            onChange: (event) => change(setPageSize, Number(event.target.value)),
-          }, [20, 40, 80, 160].map((size) => h("option", { key: size, value: size }, size)))),
+          h("select", { className: "form-control form-control-sm", value: pageSize, "aria-label": "Itens por página",
+            onChange: (event) => change(setPageSize, Number(event.target.value)) },
+          [20, 40, 80, 160].map((size) => h("option", { key: size, value: size }, size))),
+          h("button", { type: "button", className: `btn btn-sm ${displayMode === 0 ? "btn-primary" : "btn-secondary"}`,
+            "aria-label": "Grade", "aria-pressed": displayMode === 0, onClick: () => setDisplayMode(0) }, "▦"),
+          h("button", { type: "button", className: `btn btn-sm ${displayMode === 2 ? "btn-primary" : "btn-secondary"}`,
+            "aria-label": "Mural", "aria-pressed": displayMode === 2, onClick: () => setDisplayMode(2) }, "▧"),
+          h("input", { type: "range", min: 0, max: 3, step: 1, value: zoomIndex,
+            "aria-label": "Tamanho das miniaturas", onChange: (event) => setZoomIndex(Number(event.target.value)) }),
           h("button", { type: "button", className: "btn btn-secondary btn-sm", disabled: loading,
             onClick: () => setRevision((value) => value + 1) }, "Atualizar")),
         loading ? h("p", { role: "status", className: "gs-status" }, "Carregando fotos e vídeos…")
           : error ? h("div", { role: "alert", className: "alert alert-danger" },
-            h("p", null, error), h("p", null, "Tente Atualizar ou use a Grade original. Nenhum arquivo foi alterado."))
+            h("p", null, error), h("p", null, "Tente Atualizar ou use as Ferramentas originais. Nenhum arquivo foi alterado."))
             : h(React.Fragment, null,
-              h("p", { className: "gs-counts" },
+              h("small", { className: "gs-counts" },
                 `${imageCount} ${imageCount === 1 ? "imagem" : "imagens"} · ${videoCount} ${videoCount === 1 ? "vídeo" : "vídeos"}`),
               pager(),
-              filtered.length ? h("div", { className: "gs-grid" }, paged.items.map((item) =>
-                h(MediaCard, { key: item.key, item, onOpen: () => setSelected(item.key) })))
-                : h("p", { className: "gs-status" }, "Nenhuma mídia encontrada com esses filtros."),
-              pager()),
+              filtered.length ? h(ImageList, {
+                _gsMixed: true, images: entries, filter, selectedIds: EMPTY_SELECTION,
+                onSelectChange: () => {}, onChangePage: setPage,
+                pageCount: paged.pages, totalCount: paged.total,
+                slideshowRunning, setSlideshowRunning: onSlideshowChange,
+                // Chapters index images only, so cannot index a mixed sequence safely.
+                chapters: [],
+              }) : h("p", { className: "gs-status" }, "Nenhuma mídia encontrada com esses filtros."),
+              pager(), h(NativeVideoBridge, { entries })),
         !loading && !error && videoCount === 0 && h("p", { className: "gs-hint" },
-          "Não há vídeos indexados nesta pasta. Confira se o scan inclui vídeos e clique em Atualizar. Subpastas não são incluídas.")),
-      selectedIndex >= 0 && h(MediaViewer, {
-        key: filtered[selectedIndex].key, item: filtered[selectedIndex],
-        position: selectedIndex + 1, total: filtered.length, onClose: () => setSelected(null),
-        onPrevious: selectedIndex > 0 ? () => setSelected(filtered[selectedIndex - 1].key) : null,
-        onNext: selectedIndex + 1 < filtered.length ? () => setSelected(filtered[selectedIndex + 1].key) : null,
-      }));
+          "Não há vídeos indexados nesta pasta. Confira o scan e clique em Atualizar. Subpastas não são incluídas.")));
   }
 
   class GalleryBoundary extends React.Component {
@@ -238,9 +294,43 @@
     }
   }
 
+  // Keep real image IDs inside the native viewer; give video cards unique display
+  // keys only AFTER ImageList has built its lightbox state with ID-less videos.
+  api.patch.after("ImageList", function (props, rendered) {
+    if (!props._gsMixed || !React.isValidElement(rendered)) return rendered;
+    return React.cloneElement(rendered, {
+      images: core.gridEntries(props.images), selectedIds: EMPTY_SELECTION,
+      onSelectChange: undefined, selecting: false,
+    });
+  });
+
+  api.patch.after("ImageCard", function (props, rendered) {
+    const marker = props.image?._gsNative;
+    if (!marker || !React.isValidElement(rendered)) return rendered;
+    const video = marker.kind === "video";
+    const card = React.cloneElement(rendered, {
+      onSelectedChanged: undefined, selected: false, selecting: false,
+      ...(video ? { url: `/scenes/${marker.id}`, popovers: null, overlays: null,
+        details: h("small", { className: "gs-native-duration" }, `▶ ${core.formatDuration(marker.duration)}`) } : {}),
+    });
+    return h("div", { className: "gs-native-card-shell", onClickCapture: (event) => {
+      const target = event.target.closest?.("a");
+      if (!props.onPreview || !target || (!video && !target.classList.contains("image-card-link")) ||
+          event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      props.onPreview(event);
+    } }, card);
+  });
+
+  api.patch.after("ImageCard.Image", function (props, rendered) {
+    if (props.image?._gsNative?.kind !== "video") return rendered;
+    return h(React.Fragment, null, rendered, h("span", { className: "gs-native-play", "aria-hidden": true }, "▶"));
+  });
+
   api.patch.instead("GalleryImagesPanel", function (props, next) {
     return h(GalleryBoundary, { key: props.gallery.id, original: next, originalProps: props },
       h(MixedGallery, { original: next, originalProps: props }));
   });
-  console.info("[gallery-stashapp] Grade mista registrada para galerias baseadas em pasta.");
+  console.info("[gallery-stashapp] Grade e lightbox nativos com vídeos da mesma pasta.");
 })();

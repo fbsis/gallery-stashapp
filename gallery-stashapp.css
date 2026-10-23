@@ -1,37 +1,28 @@
+/* Leave Stash's cards, wall, pagination and Lightbox CSS untouched. */
 .gs-gallery { width: 100%; min-width: 0; }
-.gs-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 1rem; }
-.gs-heading h3 { font-size: 1.2rem; margin: 0; }
-.gs-folder { display: block; overflow-wrap: anywhere; opacity: .75; }
-.gs-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .65rem; margin-bottom: .75rem; }
-.gs-toolbar label { display: flex; flex-direction: column; gap: .2rem; margin: 0; font-size: .85rem; }
-.gs-toolbar label:first-child { flex: 1 1 12rem; }
-.gs-toolbar .form-control { min-width: 5rem; }
-.gs-counts, .gs-hint { font-size: .9rem; opacity: .8; }
-.gs-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .7rem; margin: .7rem 0; }
-.gs-pagination > span:first-child { margin-right: auto; }
-.gs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .65rem; }
-.gs-card { display: flex; flex-direction: column; width: 100%; min-width: 0; overflow: hidden; padding: 0; border: 1px solid rgba(128,128,128,.3); border-radius: .25rem; background: rgba(128,128,128,.12); color: inherit; text-align: left; cursor: pointer; }
-.gs-card:hover { border-color: #00a4dc; }
-.gs-card:focus-visible { outline: 3px solid #00a4dc; outline-offset: 2px; }
-.gs-card-preview { display: flex; position: relative; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; background: rgba(0,0,0,.25); }
-.gs-card-preview img { width: 100%; height: 100%; object-fit: contain; }
-.gs-placeholder { font-size: 2.5rem; opacity: .5; }
-.gs-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; font-size: 1.5rem; }
-.gs-duration { position: absolute; right: .3rem; bottom: .3rem; padding: .1rem .35rem; border-radius: .2rem; background: rgba(0,0,0,.8); color: #fff; font-size: .8rem; }
-.gs-card-title { padding: .55rem .65rem .2rem; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gs-card-kind { padding: .1rem .65rem .55rem; font-size: .8rem; opacity: .7; }
+.gs-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .65rem; }
+.gs-folder { overflow-wrap: anywhere; opacity: .7; }
+.gs-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-bottom: .75rem; }
+.gs-toolbar > input[type="search"] { flex: 1 1 10rem; width: auto; }
+.gs-toolbar > select { width: auto; }
+.gs-toolbar > input[type="range"] { width: 6rem; }
+.gs-counts, .gs-hint { font-size: .85rem; opacity: .75; }
 .gs-status { padding: 1.5rem 0; }
-.gs-media-modal .modal-body { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; color: #eee; min-height: 10rem; }
-.gs-media-modal .modal-title { overflow-wrap: anywhere; font-size: 1rem; }
-.gs-full-image { max-width: 100%; max-height: 75vh; object-fit: contain; }
-.gs-player { display: block; width: 100%; max-height: 75vh; }
-.gs-viewer-position { margin-right: auto; }
-.gs-stream-label { display: flex; align-items: center; gap: .5rem; margin: 0; }
-.gs-stream-label select { max-width: 15rem; }
+.gs-native-card-shell { display: contents; }
+.gs-native-play { position: absolute; pointer-events: none; top: 50%; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; font-size: 1.5rem; }
+.gs-native-duration { display: block; padding: 0 .5rem .5rem; opacity: .75; }
+.gs-native-gallery .wall-item:has(img[src*="#gs-scene="])::after { content: "▶"; position: absolute; pointer-events: none; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: .25rem .65rem; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; }
+/* Only video slides suppress the image-specific title/link. Photo UI is native. */
+.Lightbox.gs-native-video-active .Lightbox-footer-center > .d-flex,
+.Lightbox.gs-native-video-active .Lightbox-footer-center .image-link { display: none !important; }
+.Lightbox.gs-native-video-active .Lightbox-footer-left { visibility: hidden; }
+.gs-native-video-title { font-weight: bold; }
+.gs-native-video-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .3rem; padding: 0 .5rem; }
+.gs-native-video-controls label { display: flex; align-items: center; gap: .3rem; margin: 0; }
+.gs-native-video-controls select { width: auto; max-width: 16rem; }
 .gs-error { color: #ffb3b3; }
 @media (max-width: 575px) {
-  .gs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .gs-toolbar label { flex: 1 1 7rem; }
-  .gs-pagination { gap: .4rem; }
-  .gs-stream-label { width: 100%; }
+  .gs-toolbar > input[type="search"] { flex-basis: 100%; }
+  .gs-native-video-controls { font-size: .75rem; }
+  .gs-native-video-controls select { max-width: 8rem; }
 }

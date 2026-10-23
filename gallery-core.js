@@ -14,11 +14,16 @@
       ) {
         count
         images {
-          id title
-          paths { thumbnail image }
+          id title code date urls details photographer rating100 organized o_counter
+          paths { thumbnail preview image }
+          galleries { id title files { path } folder { path } }
+          studio { id name image_path }
+          tags { id name }
+          performers { id name gender favorite image_path }
           visual_files {
-            ... on ImageFile { path basename parent_folder { id } }
-            ... on VideoFile { path basename parent_folder { id } }
+            __typename
+            ... on ImageFile { path basename width height parent_folder { id } }
+            ... on VideoFile { path basename width height video_codec parent_folder { id } }
           }
         }
       }
@@ -33,8 +38,8 @@
         count
         scenes {
           id title
-          paths { screenshot }
-          files { path basename duration parent_folder { id } }
+          paths { screenshot stream }
+          files { path basename width height video_codec duration parent_folder { id } }
         }
       }
     }`,
@@ -93,7 +98,7 @@
         key: `image:${image.id}`, id: String(image.id), kind: "image",
         title: image.title || file?.basename || `Imagem ${image.id}`,
         path: file?.path || "", thumbnail: image.paths?.thumbnail || "",
-        source: image.paths?.image || "", duration: null,
+        source: image.paths?.image || "", duration: null, raw: image,
       };
       items.set(item.key, item);
     }
@@ -105,7 +110,7 @@
         key: `video:${scene.id}`, id: String(scene.id), kind: "video",
         title: scene.title || file.basename || `Vídeo ${scene.id}`,
         path: file.path || "", thumbnail: scene.paths?.screenshot || "",
-        source: "", duration: file.duration,
+        source: scene.paths?.stream || "", duration: file.duration, raw: scene, file,
       };
       items.set(item.key, item);
     }
@@ -162,6 +167,54 @@
     });
   }
 
+  function markVideoURL(url, sceneId) {
+    return `${(url || "about:blank").split("#")[0]}#gs-scene=${encodeURIComponent(sceneId)}`;
+  }
+
+  function sceneIdFromURL(url) {
+    const match = /#gs-scene=([^&]+)/.exec(url || "");
+    try { return match ? decodeURIComponent(match[1]) : null; }
+    catch (_) { return null; }
+  }
+
+  // Native ImageList uses these entries only for display and the lightbox.
+  // Scenes deliberately have NO image ID: native rating, delete and D/D actions
+  // must never receive a scene ID (an unrelated image can have the same ID).
+  function nativeEntries(items) {
+    return items.map((item) => {
+      const marker = { key: item.key, kind: item.kind, id: item.id, duration: item.duration };
+      if (item.kind === "image") {
+        return {
+          ...item.raw, id: item.id, title: item.raw?.title || item.title,
+          tags: item.raw?.tags || [], performers: item.raw?.performers || [],
+          galleries: item.raw?.galleries || [], studio: item.raw?.studio || null,
+          paths: { ...item.raw?.paths, image: item.source, thumbnail: item.thumbnail,
+            preview: item.raw?.paths?.preview || "" },
+          visual_files: item.raw?.visual_files || [], _gsNative: marker,
+        };
+      }
+      const file = item.raw?.files?.[0] || item.file || {};
+      return {
+        id: undefined, title: item.title, tags: [], performers: [], galleries: [],
+        studio: null, organized: false,
+        paths: { image: markVideoURL(item.source, item.id),
+          thumbnail: markVideoURL(item.thumbnail, item.id), preview: "" },
+        visual_files: [{ __typename: "VideoFile", path: item.path,
+          width: file.width || 1920, height: file.height || 1080,
+          video_codec: file.video_codec === "gif" ? "unknown" : (file.video_codec || "unknown") }],
+        _gsNative: marker,
+      };
+    });
+  }
+
+  // Grid/wall keys are separate from real image IDs. These display-only keys
+  // are NEVER passed to the native lightbox or to image mutations.
+  function gridEntries(entries) {
+    return entries.map((entry) => entry._gsNative?.kind === "video"
+      ? { ...entry, id: `gs-video:${entry._gsNative.id}` } : entry);
+  }
+
   return { BATCH_SIZE, QUERIES, fetchAll, matchingFile, toMedia, loadMedia,
-    selectMedia, paginate, formatDuration, streamChoices };
+    selectMedia, paginate, formatDuration, streamChoices, nativeEntries, gridEntries,
+    markVideoURL, sceneIdFromURL };
 });

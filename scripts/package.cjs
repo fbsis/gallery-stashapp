@@ -6,7 +6,7 @@ const YAML = require('yaml');
 
 const ROOT = path.resolve(__dirname, '..');
 // Stash compares release dates when checking for updates. Bump this for each release.
-const RELEASE_DATE = '2026-10-23 00:00:00';
+const RELEASE_DATE = '2026-10-23 23:06:44';
 const FILES = ['LICENSE', 'gallery-core.js', 'gallery-stashapp.css',
   'gallery-stashapp.js', 'gallery-stashapp.yml'];
 
