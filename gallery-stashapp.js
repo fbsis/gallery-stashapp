@@ -294,9 +294,12 @@
     }
   }
 
+  // Stash appends the result/next function after all React arguments, including
+  // legacy context. Read the final argument rather than assuming it is second.
   // Keep real image IDs inside the native viewer; give video cards unique display
   // keys only AFTER ImageList has built its lightbox state with ID-less videos.
-  api.patch.after("ImageList", function (props, rendered) {
+  api.patch.after("ImageList", function (props, ...args) {
+    const rendered = args[args.length - 1];
     if (!props._gsMixed || !React.isValidElement(rendered)) return rendered;
     return React.cloneElement(rendered, {
       images: core.gridEntries(props.images), selectedIds: EMPTY_SELECTION,
@@ -304,7 +307,8 @@
     });
   });
 
-  api.patch.after("ImageCard", function (props, rendered) {
+  api.patch.after("ImageCard", function (props, ...args) {
+    const rendered = args[args.length - 1];
     const marker = props.image?._gsNative;
     if (!marker || !React.isValidElement(rendered)) return rendered;
     const video = marker.kind === "video";
@@ -323,12 +327,14 @@
     } }, card);
   });
 
-  api.patch.after("ImageCard.Image", function (props, rendered) {
+  api.patch.after("ImageCard.Image", function (props, ...args) {
+    const rendered = args[args.length - 1];
     if (props.image?._gsNative?.kind !== "video") return rendered;
     return h(React.Fragment, null, rendered, h("span", { className: "gs-native-play", "aria-hidden": true }, "▶"));
   });
 
-  api.patch.instead("GalleryImagesPanel", function (props, next) {
+  api.patch.instead("GalleryImagesPanel", function (props, ...args) {
+    const next = args[args.length - 1];
     return h(GalleryBoundary, { key: props.gallery.id, original: next, originalProps: props },
       h(MixedGallery, { original: next, originalProps: props }));
   });

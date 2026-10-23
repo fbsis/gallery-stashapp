@@ -1,9 +1,9 @@
 - "id": "gallery-stashapp"
   "name": "Gallery Stashapp - Fotos e vídeos"
-  "version": "0.2.0"
-  "date": "2026-10-23 23:06:44"
-  "path": "dist/gallery-stashapp-0.2.0-48ee02242d8a.zip"
-  "sha256": "48ee02242d8a9d4084961937934acb52972453c490a9f7e0a36db4f040b12f80"
+  "version": "0.2.1"
+  "date": "2026-10-23 23:11:24"
+  "path": "dist/gallery-stashapp-0.2.1-35d4502e8444.zip"
+  "sha256": "35d4502e8444052c2c7ddefd0fd811d835608258080ad306ffd67638bddb235a"
   "metadata":
     "description": "Fotos e vídeos da mesma pasta na grade e no lightbox nativos do Stash, com navegação por teclado e sem associação manual."
     "url": "https://github.com/fbsis/gallery-stashapp"

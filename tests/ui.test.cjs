@@ -31,8 +31,11 @@ async function defaultHandler(options) {
     { url: '/stream/1.webm', mime_type: 'video/webm', label: 'WebM' },
   ] } } };
 }
-function after(name, props, rendered) { return afterPatches[name]?.(props, rendered) || rendered; }
+// Stash appends the patch payload after ALL component arguments. React 17
+// supplies (props, context), so the payload is not necessarily argument two.
+function after(name, args, rendered) { return afterPatches[name]?.(...args, rendered) || rendered; }
 function Original() { return h('p', { 'data-native': true }, 'Ferramentas nativas'); }
+function PatchedPanel(...args) { return replacement(...args, Original); }
 
 function GridCard(props) {
   return h('article', { className: 'image-card grid-card' },
@@ -41,15 +44,15 @@ function GridCard(props) {
       h('a', { href: props.url, className: 'image-card-link' }, props.image)),
     h('a', { href: props.url }, props.title), props.details, props.popovers);
 }
-function NativeCard(props) {
+function NativeCard(props, context) {
   const preview = h('div', { className: 'image-card-preview' },
     h('img', { src: props.image.paths.thumbnail, alt: props.image.title }),
     h('button', { type: 'button', onClick: props.onPreview }, 'Prévia'));
   const rendered = h(GridCard, { url: `/images/${props.image.id}`, title: props.image.title,
-    onSelectedChanged: () => {}, image: after('ImageCard.Image', props, preview),
+    onSelectedChanged: () => {}, image: after('ImageCard.Image', [props, context], preview),
     details: h('small', null, 'Detalhes nativos'),
     popovers: h('span', { className: 'native-tags' }, props.image.tags.map(tag => tag.name).join(', ')) });
-  return after('ImageCard', props, rendered);
+  return after('ImageCard', [props, context], rendered);
 }
 function NativeRenderer({ images, onPreview, mode }) {
   if (mode === 2) return h('div', { className: 'gallery native-wall' }, images.map((image, index) =>
@@ -71,7 +74,7 @@ function NativePaginationIndex(props) {
   const last = Math.min(props.currentPage * props.itemsPerPage, props.totalItems);
   return h('span', null, `${first}–${last} de ${props.totalItems}`);
 }
-function NativeImageList(props) {
+function NativeImageList(props, context) {
   nativeProps = props;
   const [index, setIndex] = React.useState(null);
   const pending = React.useRef(null);
@@ -134,7 +137,7 @@ function NativeImageList(props) {
           current.id !== undefined && h('button', { 'data-image-delete': true,
             onClick: () => mutations.push({ type: 'delete-image', id: current.id }) }, 'Excluir imagem'))),
       h('div', { className: 'Lightbox-footer-right' })));
-  return h(React.Fragment, null, after('ImageList', props, rendered), modal);
+  return h(React.Fragment, null, after('ImageList', [props, context], rendered), modal);
 }
 
 beforeEach(() => {
@@ -175,7 +178,7 @@ afterEach(async () => {
 });
 async function settle() { await new Promise(resolve => setImmediate(resolve)); }
 async function render(value = gallery, active = true) {
-  await act(async () => { ReactDOM.render(replacement({ gallery: value, active }, Original), container); await settle(); });
+  await act(async () => { ReactDOM.render(h(PatchedPanel, { gallery: value, active }), container); await settle(); });
 }
 async function click(element) {
   assert.ok(element, 'expected a clickable element');
@@ -410,6 +413,28 @@ test('falls back safely when native components are unavailable', async () => {
   await render();
   assert.ok(container.querySelector('[data-native]'));
   assert.match(container.querySelector('[role="alert"]').textContent, /não expõe a grade nativa/);
+});
+
+test('the error boundary can render the original panel after a native component throws', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  window.PluginApi.components.Pagination = function BrokenPagination() { throw new Error('Native render failed'); };
+  await render();
+  assert.ok(container.querySelector('[data-native]'));
+  assert.match(container.querySelector('[role="alert"]').textContent, /O plugin encontrou um erro/);
+});
+
+test('also accepts patch calls without React context', async () => {
+  await act(async () => {
+    ReactDOM.render(replacement({ gallery: { id: 'zip', folder: null } }, Original), container);
+  });
+  assert.ok(container.querySelector('[data-native]'));
+  const props = { _gsMixed: true, images: [], image: { _gsNative: { kind: 'video', id: '1' } } };
+  const rendered = h('div', { 'data-preview': true });
+  assert.deepEqual(afterPatches.ImageList(props, rendered).props.images, []);
+  assert.equal(afterPatches.ImageCard(props, rendered).props.className, 'gs-native-card-shell');
+  const preview = afterPatches['ImageCard.Image'](props, rendered);
+  assert.equal(preview.props.children[0], rendered);
+  assert.equal(preview.props.children[1].props.className, 'gs-native-play');
 });
 
 test('only registers the plugin once', async () => {
