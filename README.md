@@ -50,6 +50,20 @@ typeof window.PluginApi?.components?.GalleryImagesPanel
 
 Se retornar `undefined` depois de a galeria carregar, essa versão não expõe o componente esperado. Desabilite o plugin e informe a versão do Stash para adaptar a integração.
 
+## Instalação pela interface do Stash (recomendada)
+
+Em **Settings → Plugins → Available Plugins**, adicione uma fonte com:
+
+- **Nome:** `Gallery Stashapp`
+- **URL:** `https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml`
+- **Local Path:** `gallery-stashapp`
+
+Atualize a lista, selecione **Gallery Stashapp - Fotos e vídeos** e instale. Depois, recarregue completamente o navegador (`Cmd+Shift+R` / `Ctrl+Shift+R`) e abra uma galeria baseada em pasta.
+
+**Não use a URL da página do GitHub, do README ou de `gallery-stashapp.yml` como fonte.** O Stash espera um índice de pacotes (`index.yml`), que aponta para um ZIP e seu SHA-256. Uma URL de página HTML pode causar o erro `reading package list: yaml: ... mapping values are not allowed in this context`.
+
+Se já cadastrou uma fonte com erro, remova-a ou corrija sua URL antes de atualizar a lista. Se já fez a instalação manual, remova primeiro aquela cópia para não carregar o plugin duas vezes.
+
 ## Instalação manual — sem build e sem Node.js
 
 Use o diretório `plugins` **ao lado do `config.yml` utilizado pelo seu Stash**. O caminho padrão costuma ser `~/.stash/plugins`, mas pode ser outro, principalmente em Docker.
@@ -87,7 +101,7 @@ Não é preciso instalar as dependências de desenvolvimento para utilizar o plu
 
 ## Atualização e remoção
 
-Para atualizar, substitua os quatro arquivos, recarregue os plugins e recarregue a página completamente.
+Se instalou pela interface, use o gerenciador de plugins do Stash para verificar e instalar atualizações. Na instalação manual, substitua os quatro arquivos e recarregue os plugins. Nos dois casos, recarregue a página completamente.
 
 Para remover, desabilite o plugin ou remova a pasta `gallery-stashapp` do diretório de plugins, recarregue os plugins e a página. Como não existem alterações no banco, não há migração ou limpeza de vínculos.
 
@@ -133,6 +147,17 @@ STASH_SCHEMA_DIR=/caminho/stash/graphql/schema npm test
 ```
 
 Se existir um checkout em `../stash`, ele será usado automaticamente. Sem um schema local e sem a variável acima, apenas esse teste é marcado como ignorado. O CI executa os testes contra os schemas da versão `v0.31.1` e da branch `develop`.
+
+### Publicar um pacote instalável
+
+Depois de alterar o plugin:
+
+1. Atualize a versão em `package.json`/`package-lock.json` e em `gallery-stashapp.yml`.
+2. Atualize `RELEASE_DATE` em `scripts/package.cjs` (UTC, formato `YYYY-MM-DD HH:mm:ss`). O Stash compara essa data ao procurar atualizações.
+3. Execute `npm run package` e `npm test`.
+4. Faça commit de `index.yml`, do ZIP gerado em `dist/` e das alterações de código, e envie para `main`.
+
+O pacote é reproduzível, inclui somente os arquivos de execução e a licença e possui nome baseado em versão e hash. Mantenha ZIPs de releases anteriores disponíveis: um índice em cache pode ainda apontar para eles. A fonte de instalação continua sendo a mesma URL de `index.yml`.
 
 ### Roteiro de teste manual
 

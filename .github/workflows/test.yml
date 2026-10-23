@@ -23,6 +23,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run package
+      - name: Verify committed package is up to date
+        run: git diff --exit-code -- index.yml dist/
       - run: npm test
         env:
           STASH_SCHEMA_DIR: .reference-stash/graphql/schema
