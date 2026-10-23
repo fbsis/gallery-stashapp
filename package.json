@@ -1,0 +1,20 @@
+{
+  "name": "gallery-stashapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fotos e vídeos da mesma pasta na grade de galerias do Stash",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check gallery-core.js && node --check gallery-stashapp.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "graphql": "^16.11.0",
+    "jsdom": "^26.1.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  }
+}

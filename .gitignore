@@ -1,0 +1,4 @@
+node_modules/
+.reference-stash/
+.DS_Store
+*.log

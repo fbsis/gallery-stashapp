@@ -1,0 +1,28 @@
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        stash-ref: [v0.31.1, develop]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout reference GraphQL schema
+        uses: actions/checkout@v4
+        with:
+          repository: stashapp/stash
+          ref: ${{ matrix.stash-ref }}
+          path: .reference-stash
+          sparse-checkout: graphql/schema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+        env:
+          STASH_SCHEMA_DIR: .reference-stash/graphql/schema
