@@ -48,6 +48,14 @@ test('preserves gallery image membership, even for manually added images', () =>
   assert.equal(core.toMedia([photo], [], '10').length, 1);
 });
 
+test('uses English fallback titles when metadata and filenames are missing', () => {
+  const photo = image('1');
+  delete photo.visual_files[0].basename;
+  const video = scene('2');
+  delete video.files[0].basename;
+  assert.deepEqual(core.toMedia([photo], [video], '10').map(item => item.title), ['Image 1', 'Video 2']);
+});
+
 test('deduplicates items but keeps an image and scene with the same numeric ID', () => {
   assert.equal(core.toMedia([image('1'), image('1')], [scene('1'), scene('1')], '10').length, 2);
 });
@@ -75,26 +83,26 @@ test('returns empty results without requesting another page', async () => {
 
 test('rejects inconsistent pagination instead of looping forever', async () => {
   await assert.rejects(core.fetchAll(async () => ({ findScenes: { count: 1, scenes: [] } }),
-    '', {}, 'findScenes', 'scenes'), /biblioteca mudou/);
+    '', {}, 'findScenes', 'scenes'), /library changed/);
 });
 
 test('reports missing or malformed server results', async () => {
-  await assert.rejects(core.fetchAll(async () => ({}), '', {}, 'findScenes', 'scenes'), /Resposta inesperada/);
+  await assert.rejects(core.fetchAll(async () => ({}), '', {}, 'findScenes', 'scenes'), /Unexpected response/);
   await assert.rejects(core.fetchAll(async () => ({ findScenes: { count: -1, scenes: [] } }),
-    '', {}, 'findScenes', 'scenes'), /Resposta inesperada/);
+    '', {}, 'findScenes', 'scenes'), /Unexpected response/);
 });
 
 test('detects overlapping pages caused by changes to the indexed library', async () => {
   await assert.rejects(core.fetchAll(async () => ({ findScenes: { count: 2, scenes: [scene('1')] } }),
-    '', {}, 'findScenes', 'scenes'), /biblioteca mudou/);
+    '', {}, 'findScenes', 'scenes'), /library changed/);
 });
 
 test('propagates network and GraphQL failures', async () => {
-  await assert.rejects(core.loadMedia(async () => { throw new Error('Sem conexão'); }, '1', '10'), /Sem conexão/);
+  await assert.rejects(core.loadMedia(async () => { throw new Error('No connection'); }, '1', '10'), /No connection/);
 });
 
 test('rejects a gallery without a physical folder', async () => {
-  await assert.rejects(core.loadMedia(() => assert.fail('must not query'), '1', null), /associada a uma pasta/);
+  await assert.rejects(core.loadMedia(() => assert.fail('must not query'), '1', null), /associated with a folder/);
 });
 
 test('honors cancellation before querying', async () => {
@@ -151,6 +159,49 @@ test('formats video durations without treating missing duration as zero', () => 
 test('deduplicates stream endpoints and ignores empty URLs', () => {
   const streams = [{ url: '/a', label: 'MP4' }, { url: '/a' }, { url: '' }, { url: '/b' }];
   assert.deepEqual(core.streamChoices(streams).map(stream => stream.url), ['/a', '/b']);
+});
+
+test('prefers the direct/original stream regardless of server ordering or MIME detection', () => {
+  const low = { url: '/scene/1/stream.mp4?resolution=LOW', mime_type: 'video/mp4', label: 'MP4 Low (240p)' };
+  const direct = { url: '/scene/1/stream?token=example', mime_type: 'video/mp4', label: 'Direct stream' };
+  assert.equal(core.preferredStream([low, direct], () => ''), direct);
+  assert.equal(core.streamLabel(direct), 'Original / Direct stream');
+});
+
+test('sorts original resolution before descending quality without changing signed URLs or server data', () => {
+  const low = { url: '/scene/1/stream.mp4?resolution=LOW&token=a', label: 'MP4 Low (240p)' };
+  const original = { url: 'https://example.test/scene/1/stream.mp4?token=b&resolution=ORIGINAL', label: 'MP4' };
+  const hd = { url: '/scene/1/stream.webm?resolution=STANDARD_HD', label: 'WEBM HD (720p)' };
+  const fullHD = { url: '/scene/1/stream.mp4?resolution=FULL_HD', label: 'MP4 Full HD (1080p)' };
+  const fourK = { url: '/scene/1/stream.mp4?resolution=FOUR_K', label: 'MP4 4K (2160p)' };
+  const streams = [low, hd, original, fourK, fullHD];
+  const snapshot = JSON.stringify(streams);
+  assert.deepEqual(core.streamChoices(streams), [original, fourK, fullHD, hd, low]);
+  assert.equal(JSON.stringify(streams), snapshot);
+  assert.equal(core.streamLabel(original), 'MP4 (Original resolution)');
+  assert.equal(core.streamLabel(hd), 'WEBM HD (720p)');
+});
+
+test('prefers playable original-resolution streams when no direct endpoint is offered', () => {
+  const low = { url: '/scene/1/stream.mp4?resolution=LOW', mime_type: 'video/mp4' };
+  const original = { url: '/scene/1/stream.webm?resolution=ORIGINAL', mime_type: 'video/webm' };
+  assert.equal(core.preferredStream([low, original], () => 'probably'), original);
+  assert.equal(core.preferredStream([low, original], type => type === 'video/mp4' ? 'probably' : ''), low);
+});
+
+test('uses the highest compatible quality if original is unavailable', () => {
+  const low = { url: '/scene/1/stream.mp4?resolution=LOW', mime_type: 'video/mp4' };
+  const hd = { url: '/scene/1/stream.mp4?resolution=FULL_HD', mime_type: 'video/mp4' };
+  const fourK = { url: '/scene/1/stream.webm?resolution=FOUR_K', mime_type: 'video/webm' };
+  assert.equal(core.preferredStream([low, fourK, hd], type => type === 'video/mp4' ? 'probably' : ''), hd);
+  assert.equal(core.preferredStream([low, hd], () => ''), hd);
+  assert.equal(core.preferredStream([], () => ''), undefined);
+});
+
+test('does not mislabel adaptive or lower-resolution streams as original', () => {
+  const adaptive = { url: '/scene/1/stream.m3u8?resolution=LOW', label: 'HLS Low (240p)' };
+  assert.equal(core.streamLabel(adaptive), 'HLS Low (240p)');
+  assert.deepEqual(core.streamChoices([null, { url: '' }, adaptive, adaptive]), [adaptive]);
 });
 
 test('native photo entries preserve real IDs, metadata and original image paths', () => {

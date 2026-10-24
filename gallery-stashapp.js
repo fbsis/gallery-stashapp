@@ -7,7 +7,7 @@
   if (!api?.patch?.instead || !api.patch.after || !api.React ||
       !api.ReactDOM?.createPortal || !api.libraries?.Apollo?.gql ||
       !api.utils?.StashService?.getClient || !core) {
-    console.error("[gallery-stashapp] PluginApi incompatível. A interface original foi preservada.");
+    console.error("[gallery-stashapp] Incompatible PluginApi. The original interface has been preserved.");
     return;
   }
   window.__galleryStashappLoaded = true;
@@ -33,34 +33,55 @@
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
 
-    function applySource(url) {
+    const releaseSource = useRef(() => {});
+
+    function applySource(url, preservePlayback = true) {
+      releaseSource.current();
+      const position = preservePlayback && Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      const paused = preservePlayback && video.paused;
+      const rate = video.playbackRate;
+      function restorePlayback() {
+        if (position > 0) {
+          try {
+            video.currentTime = Number.isFinite(video.duration) && video.duration > 0
+              ? Math.min(position, video.duration) : position;
+          } catch (_) { /* Some live transcodes do not support native seeking. */ }
+        }
+        video.playbackRate = rate;
+        if (paused) video.pause();
+      }
+      video.addEventListener("loadedmetadata", restorePlayback, { once: true });
+      releaseSource.current = () => video.removeEventListener("loadedmetadata", restorePlayback);
       setError("");
       setSource(url);
       video.src = core.markVideoURL(url, entry._gsNative.id);
-      const playing = video.play();
-      playing?.catch(() => {}); // Autoplay may be blocked; native controls remain available.
+      if (paused) video.pause();
+      else {
+        const playing = video.play();
+        playing?.catch(() => {}); // Autoplay may be blocked; native controls remain available.
+      }
     }
 
     useEffect(() => {
       const controller = new AbortController();
       let cancelled = false;
-      function onError() { setError("Formato indisponível. Tente outro stream."); }
+      function onError() { setError("Format unavailable. Try another quality or open the scene player."); }
       video.addEventListener("error", onError);
       query(core.QUERIES.streams, { id: entry._gsNative.id }, controller.signal).then((data) => {
         if (cancelled) return;
         const choices = core.streamChoices(data?.findScene?.sceneStreams);
-        if (!choices.length) throw new Error("O Stash não disponibilizou um stream para este vídeo.");
-        const preferred = choices.find((choice) => choice.mime_type && video.canPlayType(choice.mime_type)) ||
-          choices.find((choice) => choice.mime_type === "video/mp4") || choices[0];
+        if (!choices.length) throw new Error("Stash did not provide a stream for this video.");
+        const preferred = core.preferredStream(choices, (type) => video.canPlayType(type));
         setStreams(choices);
         setLoading(false);
-        applySource(preferred.url);
+        applySource(preferred.url, false);
       }).catch((cause) => {
-        if (!cancelled) { setError(cause.message || "Não foi possível carregar o vídeo."); setLoading(false); }
+        if (!cancelled) { setError(cause.message || "Could not load the video."); setLoading(false); }
       });
       return () => {
         cancelled = true;
         controller.abort();
+        releaseSource.current();
         video.removeEventListener("error", onError);
       };
     }, [video, entry._gsNative.id]);
@@ -68,14 +89,15 @@
     return h(React.Fragment, null,
       center && api.ReactDOM.createPortal(h("span", { className: "gs-native-video-title" }, entry.title), center),
       footer && api.ReactDOM.createPortal(h("div", { className: "gs-native-video-controls" },
-        loading && h("small", { role: "status" }, "Carregando vídeo…"),
+        loading && h("small", { role: "status" }, "Loading video…"),
         error && h("small", { role: "alert", className: "gs-error" }, error),
-        streams.length > 1 && h("label", null, "Stream ", h("select", {
-          className: "form-control form-control-sm", value: source, "aria-label": "Stream do vídeo",
+        streams.length > 0 && h("label", null, "Quality ", h("select", {
+          className: "form-control form-control-sm", value: source, "aria-label": "Video stream",
           onKeyDown: (event) => event.stopPropagation(),
           onChange: (event) => applySource(event.target.value),
-        }, streams.map((stream, index) => h("option", { key: stream.url, value: stream.url },
-          stream.label || stream.mime_type || `Formato ${index + 1}`))))), footer));
+        }, streams.map((stream) => h("option", { key: stream.url, value: stream.url }, core.streamLabel(stream))))),
+        h("a", { className: "gs-scene-player-link", href: `/scenes/${encodeURIComponent(entry._gsNative.id)}`,
+          target: "_blank", rel: "noopener noreferrer" }, "Open scene player")), footer));
   }
 
   // The native lightbox is not a patchable component. Its normal image rendering
@@ -197,7 +219,7 @@
         if (!cancelled) { setItems(media); setLoading(false); }
       }).catch((cause) => {
         controller.abort();
-        if (!cancelled) { setError(cause.message || "Não foi possível carregar as mídias."); setLoading(false); }
+        if (!cancelled) { setError(cause.message || "Could not load media."); setLoading(false); }
       });
       return () => { cancelled = true; controller.abort(); };
     }, [gallery.id, folderId, gallery.updated_at, native, active, revision]);
@@ -228,45 +250,45 @@
     if (!folderId) return h(original, originalProps);
     if (!ImageList || !Pagination || !PaginationIndex) return h(React.Fragment, null,
       h("p", { role: "alert", className: "alert alert-warning" },
-        "Esta versão do Stash não expõe a grade nativa necessária. Exibindo a galeria original."),
+        "This Stash version does not expose the required native grid. Showing the original gallery."),
       h(original, originalProps));
 
-    return h("section", { className: "gs-gallery gs-native-gallery", "aria-label": "Fotos e vídeos da galeria" },
+    return h("section", { className: "gs-gallery gs-native-gallery", "aria-label": "Gallery photos and videos" },
       h("header", { className: "gs-heading" },
         h("small", { className: "gs-folder", title: gallery.folder.path }, gallery.folder.path),
         h("button", { type: "button", className: "btn btn-outline-secondary btn-sm",
-          onClick: () => setNative(!native) }, native ? "Mostrar fotos e vídeos" : "Ferramentas originais")),
+          onClick: () => setNative(!native) }, native ? "Show photos and videos" : "Original tools")),
       native ? h(original, originalProps) : h(React.Fragment, null,
         h("div", { className: "gs-toolbar" },
           h("input", { type: "search", className: "form-control form-control-sm", value: search,
-            "aria-label": "Buscar mídias", placeholder: "Buscar…",
+            "aria-label": "Search media", placeholder: "Search…",
             onChange: (event) => change(setSearch, event.target.value) }),
-          h("select", { className: "form-control form-control-sm", value: kind, "aria-label": "Tipo de mídia",
+          h("select", { className: "form-control form-control-sm", value: kind, "aria-label": "Media type",
             onChange: (event) => change(setKind, event.target.value) },
-          h("option", { value: "all" }, "Fotos e vídeos"), h("option", { value: "image" }, "Só imagens"),
-          h("option", { value: "video" }, "Só vídeos")),
-          h("select", { className: "form-control form-control-sm", value: sort, "aria-label": "Ordenação",
+          h("option", { value: "all" }, "Photos and videos"), h("option", { value: "image" }, "Images only"),
+          h("option", { value: "video" }, "Videos only")),
+          h("select", { className: "form-control form-control-sm", value: sort, "aria-label": "Sort order",
             onChange: (event) => change(setSort, event.target.value) },
-          h("option", { value: "path" }, "Caminho"), h("option", { value: "title" }, "Título")),
-          h("button", { type: "button", className: "btn btn-secondary btn-sm", "aria-label": "Inverter ordenação",
+          h("option", { value: "path" }, "Path"), h("option", { value: "title" }, "Title")),
+          h("button", { type: "button", className: "btn btn-secondary btn-sm", "aria-label": "Reverse sort order",
             onClick: () => change(setDescending, !descending) }, descending ? "↓" : "↑"),
-          h("select", { className: "form-control form-control-sm", value: pageSize, "aria-label": "Itens por página",
+          h("select", { className: "form-control form-control-sm", value: pageSize, "aria-label": "Items per page",
             onChange: (event) => change(setPageSize, Number(event.target.value)) },
           [20, 40, 80, 160].map((size) => h("option", { key: size, value: size }, size))),
           h("button", { type: "button", className: `btn btn-sm ${displayMode === 0 ? "btn-primary" : "btn-secondary"}`,
-            "aria-label": "Grade", "aria-pressed": displayMode === 0, onClick: () => setDisplayMode(0) }, "▦"),
+            "aria-label": "Grid", "aria-pressed": displayMode === 0, onClick: () => setDisplayMode(0) }, "▦"),
           h("button", { type: "button", className: `btn btn-sm ${displayMode === 2 ? "btn-primary" : "btn-secondary"}`,
-            "aria-label": "Mural", "aria-pressed": displayMode === 2, onClick: () => setDisplayMode(2) }, "▧"),
+            "aria-label": "Wall", "aria-pressed": displayMode === 2, onClick: () => setDisplayMode(2) }, "▧"),
           h("input", { type: "range", min: 0, max: 3, step: 1, value: zoomIndex,
-            "aria-label": "Tamanho das miniaturas", onChange: (event) => setZoomIndex(Number(event.target.value)) }),
+            "aria-label": "Thumbnail size", onChange: (event) => setZoomIndex(Number(event.target.value)) }),
           h("button", { type: "button", className: "btn btn-secondary btn-sm", disabled: loading,
-            onClick: () => setRevision((value) => value + 1) }, "Atualizar")),
-        loading ? h("p", { role: "status", className: "gs-status" }, "Carregando fotos e vídeos…")
+            onClick: () => setRevision((value) => value + 1) }, "Refresh")),
+        loading ? h("p", { role: "status", className: "gs-status" }, "Loading photos and videos…")
           : error ? h("div", { role: "alert", className: "alert alert-danger" },
-            h("p", null, error), h("p", null, "Tente Atualizar ou use as Ferramentas originais. Nenhum arquivo foi alterado."))
+            h("p", null, error), h("p", null, "Try Refresh or use Original tools. No files have been changed."))
             : h(React.Fragment, null,
               h("small", { className: "gs-counts" },
-                `${imageCount} ${imageCount === 1 ? "imagem" : "imagens"} · ${videoCount} ${videoCount === 1 ? "vídeo" : "vídeos"}`),
+                `${imageCount} ${imageCount === 1 ? "image" : "images"} · ${videoCount} ${videoCount === 1 ? "video" : "videos"}`),
               pager(),
               filtered.length ? h(ImageList, {
                 _gsMixed: true, images: entries, filter, selectedIds: EMPTY_SELECTION,
@@ -275,10 +297,10 @@
                 slideshowRunning, setSlideshowRunning: onSlideshowChange,
                 // Chapters index images only, so cannot index a mixed sequence safely.
                 chapters: [],
-              }) : h("p", { className: "gs-status" }, "Nenhuma mídia encontrada com esses filtros."),
+              }) : h("p", { className: "gs-status" }, "No media found with these filters."),
               pager(), h(NativeVideoBridge, { entries })),
         !loading && !error && videoCount === 0 && h("p", { className: "gs-hint" },
-          "Não há vídeos indexados nesta pasta. Confira o scan e clique em Atualizar. Subpastas não são incluídas.")));
+          "No videos are indexed in this folder. Check the scan and click Refresh. Subfolders are not included.")));
   }
 
   class GalleryBoundary extends React.Component {
@@ -289,7 +311,7 @@
       if (!this.state.error) return this.props.children;
       return h(React.Fragment, null,
         h("p", { role: "alert", className: "alert alert-warning" },
-          "O plugin encontrou um erro. Exibindo a grade original; consulte o console do navegador."),
+          "The plugin encountered an error. Showing the original grid; check the browser console."),
         h(this.props.original, this.props.originalProps));
     }
   }
@@ -338,5 +360,5 @@
     return h(GalleryBoundary, { key: props.gallery.id, original: next, originalProps: props },
       h(MixedGallery, { original: next, originalProps: props }));
   });
-  console.info("[gallery-stashapp] Grade e lightbox nativos com vídeos da mesma pasta.");
+  console.info("[gallery-stashapp] Native grid and lightbox with videos from the same folder.");
 })();

@@ -14,11 +14,11 @@ const h = React.createElement;
 // the plugin. Real-browser testing in Stash is still necessary.
 let dom, container, replacement, afterPatches, calls, handler, nativeProps, mutations, pauses, legacyFooter;
 const gallery = { id: '9', updated_at: '2026-01-01', folder: { id: '10', path: '/album' } };
-const photo = { id: '1', title: 'Foto', rating100: 80, o_counter: 2, tags: [{ id: 'tag', name: 'Teste' }],
+const photo = { id: '1', title: 'Photo', rating100: 80, o_counter: 2, tags: [{ id: 'tag', name: 'Example' }],
   galleries: [], performers: [], paths: { thumbnail: '/thumbnail/1', preview: '', image: '/image/1' },
   visual_files: [{ __typename: 'ImageFile', path: '/album/1.jpg', basename: '1.jpg',
     width: 600, height: 800, parent_folder: { id: '10' } }] };
-const video = { id: '1', title: 'Vídeo', paths: { screenshot: '/screenshot/1', stream: '/stream/1' },
+const video = { id: '1', title: 'Video', paths: { screenshot: '/screenshot/1', stream: '/stream/1' },
   files: [{ path: '/album/2.mp4', basename: '2.mp4', duration: 65, width: 1920, height: 1080,
     video_codec: 'h264', parent_folder: { id: '10' } }] };
 
@@ -34,7 +34,7 @@ async function defaultHandler(options) {
 // Stash appends the patch payload after ALL component arguments. React 17
 // supplies (props, context), so the payload is not necessarily argument two.
 function after(name, args, rendered) { return afterPatches[name]?.(...args, rendered) || rendered; }
-function Original() { return h('p', { 'data-native': true }, 'Ferramentas nativas'); }
+function Original() { return h('p', { 'data-native': true }, 'Native tools'); }
 function PatchedPanel(...args) { return replacement(...args, Original); }
 
 function GridCard(props) {
@@ -47,10 +47,10 @@ function GridCard(props) {
 function NativeCard(props, context) {
   const preview = h('div', { className: 'image-card-preview' },
     h('img', { src: props.image.paths.thumbnail, alt: props.image.title }),
-    h('button', { type: 'button', onClick: props.onPreview }, 'Prévia'));
+    h('button', { type: 'button', onClick: props.onPreview }, 'Preview'));
   const rendered = h(GridCard, { url: `/images/${props.image.id}`, title: props.image.title,
     onSelectedChanged: () => {}, image: after('ImageCard.Image', [props, context], preview),
-    details: h('small', null, 'Detalhes nativos'),
+    details: h('small', null, 'Native details'),
     popovers: h('span', { className: 'native-tags' }, props.image.tags.map(tag => tag.name).join(', ')) });
   return after('ImageCard', [props, context], rendered);
 }
@@ -63,16 +63,16 @@ function NativeRenderer({ images, onPreview, mode }) {
 }
 function NativePagination(props) {
   return h('div', { className: 'native-pagination' },
-    h('button', { disabled: props.currentPage <= 1, 'aria-label': 'Página anterior',
+    h('button', { disabled: props.currentPage <= 1, 'aria-label': 'Previous page',
       onClick: () => props.onChangePage(props.currentPage - 1) }, '←'),
     h('span', null, props.currentPage),
     h('button', { disabled: props.currentPage * props.itemsPerPage >= props.totalItems,
-      'aria-label': 'Próxima página', onClick: () => props.onChangePage(props.currentPage + 1) }, '→'));
+      'aria-label': 'Next page', onClick: () => props.onChangePage(props.currentPage + 1) }, '→'));
 }
 function NativePaginationIndex(props) {
   const first = props.totalItems ? (props.currentPage - 1) * props.itemsPerPage + 1 : 0;
   const last = Math.min(props.currentPage * props.itemsPerPage, props.totalItems);
-  return h('span', null, `${first}–${last} de ${props.totalItems}`);
+  return h('span', null, `${first}–${last} of ${props.totalItems}`);
 }
 function NativeImageList(props, context) {
   nativeProps = props;
@@ -118,24 +118,24 @@ function NativeImageList(props, context) {
   const modal = index !== null && current && h('div', { className: 'Lightbox', role: 'dialog' },
     h('div', { className: 'Lightbox-header-right' },
       h('button', { title: 'Native zoom' }, 'Zoom'),
-      h('button', { title: 'Native options' }, 'Configurações'),
-      h('button', { title: 'Close Lightbox', onClick: close }, 'Fechar')),
+      h('button', { title: 'Native options' }, 'Settings'),
+      h('button', { title: 'Close Lightbox', onClick: close }, 'Close')),
     h('div', { className: 'Lightbox-display' },
-      h('button', { 'aria-label': 'Mídia anterior', onClick: () => move(-1) }, 'Anterior'),
+      h('button', { 'aria-label': 'Previous media', onClick: () => move(-1) }, 'Previous'),
       h('div', { className: 'Lightbox-carousel', style: { left: `${index * -100}vw` } },
         props.images.map(image => h('div', { className: 'Lightbox-carousel-image', key: image.paths.image },
           image.visual_files[0]?.__typename === 'VideoFile'
             ? h('video', { src: image.paths.image }) : h('img', { src: image.paths.image, alt: image.title })))),
-      h('button', { 'aria-label': 'Próxima mídia', onClick: () => move(1) }, 'Próxima')),
+      h('button', { 'aria-label': 'Next media', onClick: () => move(1) }, 'Next')),
     h('div', { className: 'Lightbox-footer' },
       h('div', { className: 'Lightbox-footer-left' }, current.id !== undefined &&
         h('button', { 'data-image-rating': true,
-          onClick: () => mutations.push({ type: 'rate-image', id: current.id }) }, `Avaliar ${current.rating100}`)),
+          onClick: () => mutations.push({ type: 'rate-image', id: current.id }) }, `Rate ${current.rating100}`)),
       h('div', { className: 'Lightbox-footer-center' },
         h(legacyFooter ? React.Fragment : 'div', legacyFooter ? null : { className: 'd-flex' },
           h('a', { className: 'image-link', href: `/images/${current.id}` }, current.title),
           current.id !== undefined && h('button', { 'data-image-delete': true,
-            onClick: () => mutations.push({ type: 'delete-image', id: current.id }) }, 'Excluir imagem'))),
+            onClick: () => mutations.push({ type: 'delete-image', id: current.id }) }, 'Delete image'))),
       h('div', { className: 'Lightbox-footer-right' })));
   return h(React.Fragment, null, after('ImageList', [props, context], rendered), modal);
 }
@@ -196,14 +196,42 @@ test('uses the host image cards, pagination and lightbox without database mutati
   assert.ok(container.querySelector('.native-grid'));
   assert.ok(container.querySelector('.native-pagination'));
   assert.equal(container.querySelectorAll('.image-card input[type="checkbox"]').length, 0);
-  assert.match(container.textContent, /1 imagem · 1 vídeo/);
-  assert.match(container.textContent, /Teste/);
+  assert.match(container.textContent, /1 image · 1 video/);
+  assert.match(container.textContent, /Example/);
   assert.match(container.textContent, /1:05/);
   assert.equal(calls.length, 2);
   for (const call of calls) {
     assert.equal(call.query.definitions[0].operation, 'query');
     assert.equal(call.fetchPolicy, 'no-cache');
   }
+});
+
+test('renders English toolbar labels and filter choices', async () => {
+  await render();
+  assert.ok(container.querySelector('[aria-label="Gallery photos and videos"]'));
+  for (const label of ['Search media', 'Media type', 'Sort order', 'Reverse sort order',
+    'Items per page', 'Grid', 'Wall', 'Thumbnail size']) {
+    assert.ok(container.querySelector(`[aria-label="${label}"]`), `missing English label: ${label}`);
+  }
+  assert.deepEqual(Array.from(container.querySelector('[aria-label="Media type"]').options,
+    option => option.textContent), ['Photos and videos', 'Images only', 'Videos only']);
+  assert.ok(button('Refresh'));
+  assert.ok(button('Original tools'));
+});
+
+test('renders English plural counts and an empty-filter message', async () => {
+  handler = async options => options.query.definitions[0].name.value === 'GalleryStashappImages'
+    ? { data: { findImages: { count: 2, images: [photo, { ...photo, id: '2' }] } } }
+    : { data: { findScenes: { count: 0, scenes: [] } } };
+  await render();
+  assert.equal(container.querySelector('.gs-counts').textContent, '2 images · 0 videos');
+  assert.match(container.querySelector('.gs-hint').textContent, /No videos are indexed in this folder/);
+  await act(async () => {
+    const select = container.querySelector('[aria-label="Media type"]');
+    select.value = 'video';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  assert.match(container.textContent, /No media found with these filters/);
 });
 
 test('keeps images real and gives videos no image ID, even when numeric IDs collide', async () => {
@@ -229,15 +257,15 @@ test('does not query while the panel is inactive', async () => {
 
 test('allows switching to the complete native tools and back', async () => {
   await render();
-  await click(button('Ferramentas originais'));
+  await click(button('Original tools'));
   assert.ok(container.querySelector('[data-native]'));
-  await click(button('Mostrar fotos e vídeos'));
+  await click(button('Show photos and videos'));
   assert.equal(container.querySelectorAll('.image-card').length, 2);
 });
 
 test('opens photos in the native lightbox with native image controls', async () => {
   await render();
-  await click(card('Foto'));
+  await click(card('Photo'));
   assert.ok(container.querySelector('.Lightbox'));
   assert.ok(container.querySelector('[title="Native zoom"]'));
   assert.ok(container.querySelector('[title="Native options"]'));
@@ -249,7 +277,7 @@ test('opens photos in the native lightbox with native image controls', async () 
 
 test('navigates photo → video → photo using native left/right keyboard navigation', async () => {
   await render();
-  await click(card('Foto'));
+  await click(card('Photo'));
   await key('ArrowRight');
   const player = container.querySelector('.Lightbox video');
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
@@ -268,25 +296,25 @@ test('navigates photo → video → photo using native left/right keyboard navig
 
 test('uses native on-screen arrows and supports opening a video card directly', async () => {
   await render();
-  await click(card('Vídeo'));
+  await click(card('Video'));
   assert.ok(container.querySelector('.gs-native-video-title'));
-  await click(container.querySelector('[aria-label="Mídia anterior"]'));
+  await click(container.querySelector('[aria-label="Previous media"]'));
   assert.ok(container.querySelector('[data-image-delete]'));
-  await click(container.querySelector('[aria-label="Próxima mídia"]'));
+  await click(container.querySelector('[aria-label="Next media"]'));
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
 });
 
 test('continues native keyboard navigation when the video itself has focus', async () => {
   await render();
-  await click(card('Vídeo'));
+  await click(card('Video'));
   await key('ArrowLeft', container.querySelector('video'));
   assert.ok(container.querySelector('[data-image-rating]'));
 });
 
 test('video controls and stream selection do not accidentally navigate to another slide', async () => {
   await render();
-  await click(card('Vídeo'));
-  const select = container.querySelector('[aria-label="Stream do vídeo"]');
+  await click(card('Video'));
+  const select = container.querySelector('[aria-label="Video stream"]');
   await key('ArrowLeft', select);
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
   await act(async () => {
@@ -299,10 +327,124 @@ test('video controls and stream selection do not accidentally navigate to anothe
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
 });
 
+test('defaults to Original and offers the native stream labels and resolutions', async () => {
+  const streams = [
+    { url: '/scene/1/stream.mp4?resolution=LOW', mime_type: 'video/mp4', label: 'MP4 Low (240p)' },
+    { url: '/scene/1/stream.mp4?resolution=ORIGINAL', mime_type: 'video/mp4', label: 'MP4' },
+    { url: '/scene/1/stream?token=example', mime_type: 'video/mp4', label: 'Direct stream' },
+    { url: '/scene/1/stream.mp4?resolution=STANDARD_HD', mime_type: 'video/mp4', label: 'MP4 HD (720p)' },
+    { url: '/scene/1/stream.m3u8?resolution=ORIGINAL', mime_type: 'application/x-mpegURL', label: 'HLS' },
+  ];
+  handler = options => options.query.definitions[0].name.value === 'GalleryStashappStreams'
+    ? Promise.resolve({ data: { findScene: { sceneStreams: streams } } }) : defaultHandler(options);
+  await render();
+  await click(card('Video'));
+  const select = container.querySelector('[aria-label="Video stream"]');
+  assert.equal(select.value, '/scene/1/stream?token=example');
+  assert.deepEqual(Array.from(select.options, option => option.textContent), [
+    'Original / Direct stream', 'MP4 (Original resolution)', 'HLS (Original resolution)',
+    'MP4 HD (720p)', 'MP4 Low (240p)',
+  ]);
+  assert.equal(container.querySelector('video').getAttribute('src'), '/scene/1/stream?token=example#gs-scene=1');
+  assert.equal(container.querySelector('.gs-scene-player-link').getAttribute('href'), '/scenes/1');
+  assert.deepEqual(mutations, []);
+});
+
+test('shows the selected quality even if only an original stream is available', async () => {
+  handler = options => options.query.definitions[0].name.value === 'GalleryStashappStreams'
+    ? Promise.resolve({ data: { findScene: { sceneStreams: [{ url: '/scene/1/stream', label: 'Direct stream' }] } } })
+    : defaultHandler(options);
+  await render();
+  await click(card('Video'));
+  const select = container.querySelector('[aria-label="Video stream"]');
+  assert.equal(select.options.length, 1);
+  assert.equal(select.selectedOptions[0].textContent, 'Original / Direct stream');
+});
+
+test('changing quality preserves position, playback rate and pause state after metadata loads', async () => {
+  await render();
+  await click(card('Video'));
+  const player = container.querySelector('video');
+  const select = container.querySelector('[aria-label="Video stream"]');
+  player.currentTime = 27;
+  player.playbackRate = 1.5;
+  await act(async () => {
+    select.value = '/stream/1.webm';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    player.currentTime = 0;
+    player.playbackRate = 1;
+    player.dispatchEvent(new window.Event('loadedmetadata'));
+  });
+  assert.equal(player.currentTime, 27);
+  assert.equal(player.playbackRate, 1.5);
+  assert.ok(player.paused);
+  assert.ok(pauses.some(src => src.includes('/stream/1.webm')));
+});
+
+test('changing quality resumes a playing video instead of leaving it paused', async (t) => {
+  await render();
+  await click(card('Video'));
+  const player = container.querySelector('video');
+  const select = container.querySelector('[aria-label="Video stream"]');
+  Object.defineProperty(player, 'paused', { configurable: true, get: () => false });
+  const play = t.mock.method(player, 'play', () => Promise.resolve());
+  const pause = t.mock.method(player, 'pause', () => {});
+  player.currentTime = 12;
+  await act(async () => {
+    select.value = '/stream/1.webm';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    player.currentTime = 0;
+    player.dispatchEvent(new window.Event('loadedmetadata'));
+  });
+  assert.equal(player.currentTime, 12);
+  assert.equal(play.mock.callCount(), 1);
+  assert.equal(pause.mock.callCount(), 0);
+});
+
+test('only the latest quality switch can restore position and leaving the video removes the listener', async () => {
+  await render();
+  await click(card('Video'));
+  const player = container.querySelector('video');
+  const select = container.querySelector('[aria-label="Video stream"]');
+  await act(async () => {
+    player.currentTime = 10;
+    select.value = '/stream/1.webm';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    player.currentTime = 35;
+    select.value = '/stream/1.mp4';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    player.currentTime = 0;
+    player.dispatchEvent(new window.Event('loadedmetadata'));
+  });
+  assert.equal(player.currentTime, 35);
+  await act(async () => {
+    select.value = '/stream/1.webm';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  await key('ArrowLeft');
+  player.currentTime = 0;
+  await act(async () => { player.dispatchEvent(new window.Event('loadedmetadata')); });
+  assert.equal(player.currentTime, 0);
+});
+
+test('an unsupported original reports an error without silently switching to a lower quality', async () => {
+  handler = options => options.query.definitions[0].name.value === 'GalleryStashappStreams'
+    ? Promise.resolve({ data: { findScene: { sceneStreams: [
+      { url: '/scene/1/stream', mime_type: 'video/mp4', label: 'Direct stream' },
+      { url: '/scene/1/stream.mp4?resolution=LOW', mime_type: 'video/mp4', label: 'MP4 Low (240p)' },
+    ] } } }) : defaultHandler(options);
+  await render();
+  await click(card('Video'));
+  await act(async () => { container.querySelector('video').dispatchEvent(new window.Event('error')); });
+  assert.equal(container.querySelector('[aria-label="Video stream"]').value, '/scene/1/stream');
+  assert.match(container.querySelector('.gs-native-video-controls [role="alert"]').textContent, /Try another quality/);
+  assert.ok(container.querySelector('.gs-scene-player-link'));
+});
+
 test('hides image-only links for videos in the v0.31.1 footer layout and restores them for photos', async () => {
   legacyFooter = true;
   await render();
-  await click(card('Vídeo'));
+  await click(card('Video'));
   const link = container.querySelector('.Lightbox-footer-center > .image-link');
   assert.ok(link);
   assert.equal(window.getComputedStyle(link).display, 'none');
@@ -315,7 +457,7 @@ test('hides image-only links for videos in the v0.31.1 footer layout and restore
 
 test('native Escape closes the viewer and refreshes edited images', async () => {
   await render();
-  await click(card('Foto'));
+  await click(card('Photo'));
   await key('Escape');
   assert.equal(container.querySelector('.Lightbox'), null);
   assert.equal(calls.length, 4);
@@ -323,23 +465,23 @@ test('native Escape closes the viewer and refreshes edited images', async () => 
 
 test('preserves native wall rendering and opens videos from it', async () => {
   await render();
-  await click(container.querySelector('[aria-label="Mural"]'));
+  await click(container.querySelector('[aria-label="Wall"]'));
   assert.equal(container.querySelectorAll('.native-wall .wall-item').length, 2);
-  await click(container.querySelector('img[alt="Vídeo"]'));
+  await click(container.querySelector('img[alt="Video"]'));
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
 });
 
 test('refreshes indexed media without a scan hook', async () => {
   await render();
-  await click(button('Atualizar'));
+  await click(button('Refresh'));
   assert.equal(calls.length, 4);
 });
 
 test('reports GraphQL errors and keeps native tools accessible', async () => {
-  handler = async () => ({ errors: [{ message: 'Campo indisponível nesta versão' }] });
+  handler = async () => ({ errors: [{ message: 'Field unavailable in this version' }] });
   await render();
-  assert.match(container.querySelector('[role="alert"]').textContent, /Campo indisponível/);
-  await click(button('Ferramentas originais'));
+  assert.match(container.querySelector('[role="alert"]').textContent, /Field unavailable/);
+  await click(button('Original tools'));
   assert.ok(container.querySelector('[data-native]'));
 });
 
@@ -362,18 +504,18 @@ test('does not display stale results after navigation to a different gallery', a
 test('filters the mixed list while preserving native rendering', async () => {
   await render();
   await act(async () => {
-    const select = container.querySelector('[aria-label="Tipo de mídia"]');
+    const select = container.querySelector('[aria-label="Media type"]');
     select.value = 'video';
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
   assert.equal(container.querySelectorAll('.image-card').length, 1);
-  assert.ok(card('Vídeo'));
+  assert.ok(card('Video'));
 });
 
 test('paginates mixed media and navigates across page boundaries in the native viewer', async () => {
   handler = options => {
     if (options.query.definitions[0].name.value !== 'GalleryStashappImages') return defaultHandler(options);
-    const images = Array.from({ length: 40 }, (_, index) => ({ ...photo, id: String(index + 1), title: `Foto ${index + 1}`,
+    const images = Array.from({ length: 40 }, (_, index) => ({ ...photo, id: String(index + 1), title: `Photo ${index + 1}`,
       paths: { thumbnail: `/thumbnail/${index + 1}`, preview: '', image: `/image/${index + 1}` } }));
     return Promise.resolve({ data: { findImages: { count: images.length, images } } });
   };
@@ -382,7 +524,7 @@ test('paginates mixed media and navigates across page boundaries in the native v
   await click(container.querySelectorAll('.image-card-link')[39]);
   await key('ArrowRight');
   assert.equal(container.querySelectorAll('.image-card').length, 1);
-  assert.match(container.textContent, /41–41 de 41/);
+  assert.match(container.textContent, /41–41 of 41/);
   assert.ok(container.querySelector('.Lightbox.gs-native-video-active'));
   await key('ArrowLeft');
   assert.equal(container.querySelectorAll('.image-card').length, 40);
@@ -393,8 +535,8 @@ test('reports missing video streams without replacing the native viewer', async 
   handler = options => options.query.definitions[0].name.value === 'GalleryStashappStreams'
     ? Promise.resolve({ data: { findScene: { sceneStreams: [] } } }) : defaultHandler(options);
   await render();
-  await click(card('Vídeo'));
-  assert.match(container.querySelector('.Lightbox').textContent, /não disponibilizou um stream/);
+  await click(card('Video'));
+  assert.match(container.querySelector('.Lightbox').textContent, /did not provide a stream/);
   await key('ArrowLeft');
   assert.ok(container.querySelector('[data-image-rating]'));
 });
@@ -412,7 +554,7 @@ test('falls back safely when native components are unavailable', async () => {
   delete window.PluginApi.components.ImageList;
   await render();
   assert.ok(container.querySelector('[data-native]'));
-  assert.match(container.querySelector('[role="alert"]').textContent, /não expõe a grade nativa/);
+  assert.match(container.querySelector('[role="alert"]').textContent, /does not expose the required native grid/);
 });
 
 test('the error boundary can render the original panel after a native component throws', async (t) => {
@@ -420,7 +562,7 @@ test('the error boundary can render the original panel after a native component 
   window.PluginApi.components.Pagination = function BrokenPagination() { throw new Error('Native render failed'); };
   await render();
   assert.ok(container.querySelector('[data-native]'));
-  assert.match(container.querySelector('[role="alert"]').textContent, /O plugin encontrou um erro/);
+  assert.match(container.querySelector('[role="alert"]').textContent, /The plugin encountered an error/);
 });
 
 test('also accepts patch calls without React context', async () => {

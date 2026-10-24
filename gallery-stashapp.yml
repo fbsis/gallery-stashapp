@@ -1,6 +1,6 @@
-name: Gallery Stashapp - Fotos e vídeos
-description: Fotos e vídeos da mesma pasta na grade e no lightbox nativos do Stash, com navegação por teclado e sem associação manual.
-version: 0.2.1
+name: Gallery Stashapp - Photos and videos
+description: Photos and videos from the same folder in Stash's native grid and lightbox, with keyboard navigation and no manual linking.
+version: 0.3.0
 url: https://github.com/fbsis/gallery-stashapp
 ui:
   javascript:

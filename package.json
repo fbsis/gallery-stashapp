@@ -1,8 +1,8 @@
 {
   "name": "gallery-stashapp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
-  "description": "Fotos e vídeos da mesma pasta na grade de galerias do Stash",
+  "description": "Photos and videos from the same folder in the Stash gallery grid",
   "license": "MIT",
   "scripts": {
     "test": "node --test",

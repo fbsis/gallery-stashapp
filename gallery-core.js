@@ -68,17 +68,17 @@
       abortIfNeeded(signal);
       const batch = data && data[resultKey];
       if (!batch || !Array.isArray(batch[itemsKey]) || !Number.isInteger(batch.count) || batch.count < 0) {
-        throw new Error("Resposta inesperada do Stash ao carregar as mídias.");
+        throw new Error("Unexpected response from Stash while loading media.");
       }
       const items = batch[itemsKey];
       if (!items.length && received < batch.count) {
-        throw new Error("A biblioteca mudou durante a consulta. Clique em Atualizar.");
+        throw new Error("The library changed during the query. Click Refresh.");
       }
       for (const item of items) result.set(String(item.id), item);
       received += items.length;
       if (received >= batch.count) {
         if (result.size !== batch.count) {
-          throw new Error("A biblioteca mudou durante a consulta. Clique em Atualizar.");
+          throw new Error("The library changed during the query. Click Refresh.");
         }
         break;
       }
@@ -96,7 +96,7 @@
       const file = matchingFile(image.visual_files, folderId) || image.visual_files?.[0];
       const item = {
         key: `image:${image.id}`, id: String(image.id), kind: "image",
-        title: image.title || file?.basename || `Imagem ${image.id}`,
+        title: image.title || file?.basename || `Image ${image.id}`,
         path: file?.path || "", thumbnail: image.paths?.thumbnail || "",
         source: image.paths?.image || "", duration: null, raw: image,
       };
@@ -108,7 +108,7 @@
       if (!file) continue;
       const item = {
         key: `video:${scene.id}`, id: String(scene.id), kind: "video",
-        title: scene.title || file.basename || `Vídeo ${scene.id}`,
+        title: scene.title || file.basename || `Video ${scene.id}`,
         path: file.path || "", thumbnail: scene.paths?.screenshot || "",
         source: scene.paths?.stream || "", duration: file.duration, raw: scene, file,
       };
@@ -118,7 +118,7 @@
   }
 
   async function loadMedia(query, galleryId, folderId, signal) {
-    if (!galleryId || !folderId) throw new Error("A galeria precisa estar associada a uma pasta.");
+    if (!galleryId || !folderId) throw new Error("The gallery must be associated with a folder.");
     const [images, scenes] = await Promise.all([
       fetchAll(query, QUERIES.images, { gallery: String(galleryId) }, "findImages", "images", signal),
       fetchAll(query, QUERIES.scenes, { folder: String(folderId) }, "findScenes", "scenes", signal),
@@ -158,13 +158,49 @@
     return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
   }
 
+  // Use Stash's endpoint and resolution parameters, not the list's arrival
+  // order or translated labels. Never rewrite signed stream URLs.
+  function streamInfo(stream) {
+    let direct = false;
+    let resolution = "";
+    try {
+      const url = new URL(stream.url, "https://stash.invalid/");
+      resolution = (url.searchParams.get("resolution") || "").toUpperCase();
+      direct = /\/stream\/?$/.test(url.pathname) && !resolution;
+    } catch (_) { /* Keep unfamiliar endpoints selectable with their server label. */ }
+    const original = resolution === "ORIGINAL";
+    const heights = { LOW: 240, STANDARD: 480, STANDARD_HD: 720, FULL_HD: 1080, FOUR_K: 2160 };
+    const height = heights[resolution] || Number(/\b(\d{3,4})p\b/i.exec(stream.label || "")?.[1]) || 0;
+    return { direct, original, rank: direct ? 0 : original ? 1 : 2, height };
+  }
+
   function streamChoices(streams) {
     const seen = new Set();
     return (streams || []).filter((stream) => {
-      if (!stream.url || seen.has(stream.url)) return false;
+      if (!stream?.url || seen.has(stream.url)) return false;
       seen.add(stream.url);
       return true;
+    }).sort((a, b) => {
+      const left = streamInfo(a);
+      const right = streamInfo(b);
+      return left.rank - right.rank || right.height - left.height;
     });
+  }
+
+  function preferredStream(streams, canPlayType = () => "") {
+    const choices = streamChoices(streams);
+    // MIME detection cannot guarantee codec support. Try direct first and let
+    // the user choose another quality if their browser cannot decode it.
+    return choices.find((stream) => streamInfo(stream).direct) ||
+      choices.find((stream) => stream.mime_type && canPlayType(stream.mime_type)) ||
+      choices.find((stream) => stream.mime_type === "video/mp4") || choices[0];
+  }
+
+  function streamLabel(stream) {
+    const { direct, original } = streamInfo(stream);
+    const label = stream.label || stream.mime_type || "Stream";
+    if (direct) return "Original / Direct stream";
+    return original && !/\boriginal\b/i.test(label) ? `${label} (Original resolution)` : label;
   }
 
   function markVideoURL(url, sceneId) {
@@ -215,6 +251,6 @@
   }
 
   return { BATCH_SIZE, QUERIES, fetchAll, matchingFile, toMedia, loadMedia,
-    selectMedia, paginate, formatDuration, streamChoices, nativeEntries, gridEntries,
+    selectMedia, paginate, formatDuration, streamChoices, preferredStream, streamLabel, nativeEntries, gridEntries,
     markVideoURL, sceneIdFromURL };
 });

@@ -24,6 +24,20 @@ test('source index is a list of remote packages, not a plugin configuration', ()
   assert.ok(url.pathname.startsWith('/fbsis/gallery-stashapp/main/dist/gallery-stashapp-'));
 });
 
+test('README documents the YAML source and an up-to-date manual installation manifest', () => {
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  assert.ok(readme.includes('https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml'));
+  const example = /```yaml\n([\s\S]*?)\n```/.exec(readme);
+  assert.ok(example, 'expected a YAML manifest example');
+  const manifest = YAML.parse(fs.readFileSync(path.join(ROOT, 'gallery-stashapp.yml'), 'utf8'));
+  assert.deepEqual(YAML.parse(example[1]), manifest);
+  assert.equal(manifest.name, 'Gallery Stashapp - Photos and videos');
+  for (const filename of ['gallery-stashapp.yml', ...manifest.ui.javascript, ...manifest.ui.css]) {
+    assert.ok(readme.includes(filename), `installation instructions must include ${filename}`);
+    assert.ok(fs.existsSync(path.join(ROOT, filename)), `missing installation file: ${filename}`);
+  }
+});
+
 test('committed ZIP matches its SHA-256 and contains the current runtime files', () => {
   const [entry] = YAML.parse(fs.readFileSync(path.join(ROOT, 'index.yml'), 'utf8'));
   const archive = fs.readFileSync(path.join(ROOT, entry.path));

@@ -1,77 +1,45 @@
 # gallery-stashapp
 
-Plugin de interface para mostrar **fotos e vídeos juntos na grade de uma galeria do Stash**, usando automaticamente os vídeos indexados na mesma pasta.
+A Stash UI plugin that displays **photos and videos together in a gallery grid**, automatically including indexed videos from the same folder.
 
-Não é necessário selecionar cenas, vinculá-las à galeria, abrir outra aba ou recompilar o Stash. Os vídeos continuam sendo cenas **internamente**, mas aparecem e podem ser reproduzidos na própria grade da galeria.
+There is no need to select scenes, link them to the gallery, open another tab, or rebuild Stash. Videos remain **scenes internally**, but appear and play directly from the gallery grid.
 
-## Como funciona
+## Install using the YAML package source (recommended)
 
-Para uma galeria baseada nesta pasta:
-
-```text
-/colecao/viagem/
-├── foto01.jpg
-├── video01.mp4
-├── foto02.jpg
-└── video02.mp4
-```
-
-A grade passa a mostrar:
+Add this **raw `index.yml` URL** as a plugin source in Stash:
 
 ```text
-[ foto01.jpg ] [ video01.mp4 ▶ ] [ foto02.jpg ] [ video02.mp4 ▶ ]
+https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml
 ```
 
-- Mantém as imagens que já pertencem à galeria.
-- Consulta os vídeos da **pasta exata** da galeria, por ID de pasta; não usa comparação parcial de caminhos nem inclui subpastas.
-- A consulta não grava associações nem altera metadados e não acessa diretamente o banco ou os arquivos do servidor.
-- Reutiliza os **cards, mural e paginação originais** do Stash; permite mudar o tamanho das miniaturas.
-- Abre fotos e vídeos no **lightbox nativo**, com as setas na tela e as teclas **← / →**, inclusive entre páginas. **Esc** fecha o visualizador.
-- Mantém os controles originais das fotos: zoom, configurações, avaliação e demais ações disponíveis na versão do Stash. Ações que você executar nessas ferramentas continuam alterando os dados normalmente.
-- Nos vídeos, habilita os controles HTML5 e o seletor de streams, sem substituir o visualizador das fotos.
-- Vídeos não recebem IDs de imagens: avaliação, exclusão e atalhos de imagens não são aplicados a cenas.
-- Oferece busca, filtro por tipo e ordenação natural por caminho/título na lista mista.
-- Mantém o botão **Ferramentas originais**, para seleção, filtros avançados, edição em lote, capas e remoção na galeria nativa.
+1. Open **Settings → Plugins → Available Plugins** and add a source.
+2. Enter these values:
+   - **Name:** `Gallery Stashapp`
+   - **URL:** `https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml`
+   - **Local Path:** `gallery-stashapp`
+3. Refresh the available plugins list.
+4. Select **Gallery Stashapp - Photos and videos** and install it.
+5. Fully reload the browser (`Cmd+Shift+R` / `Ctrl+Shift+R`).
+6. Open a folder-based gallery containing indexed photos and videos.
 
-A aba nativa pode continuar se chamando **Images/Imagens**. Seu conteúdo recebe a grade mista; o plugin não adiciona uma aba de cenas.
+**Use `index.yml`, not `gallery-stashapp.yml`, as the package source.** Stash expects a YAML package index that points to a ZIP archive and its SHA-256 checksum. It downloads and installs the plugin files from that archive automatically. Do not paste the GitHub file-view URL, a repository page, or the README URL; HTML pages can cause `reading package list: yaml: ... mapping values are not allowed in this context`.
 
-## Requisitos e compatibilidade
+If a source is already configured incorrectly, edit or remove it before refreshing the list. If you previously installed the plugin manually, remove that copy first to avoid loading the plugin twice.
 
-- Stash com `PluginApi.patch.instead`/`after`, os pontos de extensão **`GalleryImagesPanel`**, **`ImageList`**, **`ImageCard`**, **`ImageCard.Image`**, os componentes nativos de paginação e ReactDOM/Apollo expostos pela API de plugins.
-- Uma galeria **baseada em pasta** (`Gallery.folder`). Galerias ZIP e galerias sem pasta física mantêm a interface original.
-- Os vídeos precisam ter sido indexados pelo scan do Stash. Confira se a pasta da biblioteca não está configurada para excluir vídeos.
-- A API GraphQL deve oferecer `Image.visual_files`, `SceneFilterType.files_filter`, `FileFilterType.parent_folder` e `Scene.sceneStreams`.
+### What are the two YAML files for?
 
-**Referências verificadas:** Stash **v0.31.1** e branch `develop`, commit `bdee3c8`. O ponto de extensão foi conferido no código da versão estável e as consultas foram validadas contra os dois schemas GraphQL. A interface tem testes automatizados com React 17 e uma API de host simulada; a reprodução real e a integração com a versão instalada ainda precisam ser testadas no seu Stash. Não há garantia de compatibilidade com todas as versões ou com outros plugins que substituam a mesma grade.
+| File | Purpose | How to use it |
+| --- | --- | --- |
+| [`index.yml`](https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml) | Remote package index with the release version, date, ZIP path, and checksum | Paste its raw URL into Stash's plugin source settings |
+| [`gallery-stashapp.yml`](gallery-stashapp.yml) | Plugin manifest declaring the JavaScript and CSS files | Keep it alongside those files in the plugin directory for manual installation |
 
-O plugin usa a API de interface experimental do Stash; atualizações podem exigir ajustes. Como o lightbox não expõe um ponto de extensão específico para controles de vídeo, uma integração de DOM limitada às mídias do plugin habilita esses controles e pausa o vídeo ao sair dele. A renderização e as ações das fotos permanecem nativas. Ao abrir uma galeria, você pode verificar o ponto de extensão no console do navegador:
+Neither YAML file goes in your media library. Do not replace Stash's main `config.yml` with either file.
 
-```js
-typeof window.PluginApi?.components?.GalleryImagesPanel
-// Esperado: "function"
-```
+## Manual installation using the plugin manifest
 
-Se retornar `undefined` depois de a galeria carregar, essa versão não expõe o componente esperado. Desabilite o plugin e informe a versão do Stash para adaptar a integração.
+No build step or Node.js installation is required. Use the `plugins` directory **next to the `config.yml` used by your Stash instance**. The default is usually `~/.stash/plugins`, but it can differ, especially with Docker.
 
-## Instalação pela interface do Stash (recomendada)
-
-Em **Settings → Plugins → Available Plugins**, adicione uma fonte com:
-
-- **Nome:** `Gallery Stashapp`
-- **URL:** `https://raw.githubusercontent.com/fbsis/gallery-stashapp/main/index.yml`
-- **Local Path:** `gallery-stashapp`
-
-Atualize a lista, selecione **Gallery Stashapp - Fotos e vídeos** e instale. Depois, recarregue completamente o navegador (`Cmd+Shift+R` / `Ctrl+Shift+R`) e abra uma galeria baseada em pasta.
-
-**Não use a URL da página do GitHub, do README ou de `gallery-stashapp.yml` como fonte.** O Stash espera um índice de pacotes (`index.yml`), que aponta para um ZIP e seu SHA-256. Uma URL de página HTML pode causar o erro `reading package list: yaml: ... mapping values are not allowed in this context`.
-
-Se já cadastrou uma fonte com erro, remova-a ou corrija sua URL antes de atualizar a lista. Se já fez a instalação manual, remova primeiro aquela cópia para não carregar o plugin duas vezes.
-
-## Instalação manual — sem build e sem Node.js
-
-Use o diretório `plugins` **ao lado do `config.yml` utilizado pelo seu Stash**. O caminho padrão costuma ser `~/.stash/plugins`, mas pode ser outro, principalmente em Docker.
-
-Copie estes quatro arquivos, mantendo-os juntos:
+Copy these four files from the same release, keeping them together:
 
 ```text
 plugins/
@@ -82,7 +50,24 @@ plugins/
     └── gallery-stashapp.css
 ```
 
-Exemplo no macOS/Linux, a partir da raiz deste repositório:
+The [`gallery-stashapp.yml`](gallery-stashapp.yml) manifest tells Stash which assets to load:
+
+```yaml
+name: Gallery Stashapp - Photos and videos
+description: Photos and videos from the same folder in Stash's native grid and lightbox, with keyboard navigation and no manual linking.
+version: 0.3.0
+url: https://github.com/fbsis/gallery-stashapp
+ui:
+  javascript:
+    - gallery-core.js
+    - gallery-stashapp.js
+  css:
+    - gallery-stashapp.css
+```
+
+**Copying only the `.yml` file is not enough:** the manifest does not download its JavaScript or CSS dependencies. All four files must be present.
+
+On macOS/Linux, from the root of this repository:
 
 ```bash
 mkdir -p "$HOME/.stash/plugins/gallery-stashapp"
@@ -90,52 +75,120 @@ cp gallery-stashapp.yml gallery-core.js gallery-stashapp.js gallery-stashapp.css
   "$HOME/.stash/plugins/gallery-stashapp/"
 ```
 
-Se o Stash está em Docker, copie para o diretório de configuração montado no container, por exemplo `<config-do-host>/plugins/gallery-stashapp/`. Não copie os arquivos para uma pasta de mídia.
+For Docker, copy the files into the configuration directory mounted into the container, for example `<host-config>/plugins/gallery-stashapp/`. Do not copy them into a media folder.
 
-Depois:
+Then:
 
-1. Abra **Settings → Plugins**.
-2. Clique em **Reload Plugins** e habilite **Gallery Stashapp - Fotos e vídeos**, se necessário.
-3. Recarregue completamente a página do navegador (`Cmd+Shift+R` / `Ctrl+Shift+R`). Recarregar a lista de plugins sozinho não substitui JavaScript que já está executando.
-4. Abra uma galeria baseada em pasta.
-5. Na grade **Fotos e vídeos**, os vídeos da pasta aparecerão automaticamente.
+1. Open **Settings → Plugins**.
+2. Click **Reload Plugins** and enable **Gallery Stashapp - Photos and videos**, if necessary.
+3. Fully reload the browser (`Cmd+Shift+R` / `Ctrl+Shift+R`). Reloading the plugin list alone does not replace JavaScript already running in the page.
+4. Open a folder-based gallery. Its **Photos and videos** grid will include videos from the same folder.
 
-Não é preciso instalar as dependências de desenvolvimento para utilizar o plugin.
+Development dependencies are not required to use the plugin.
 
-## Atualização e remoção
+## How it works
 
-Se instalou pela interface, use o gerenciador de plugins do Stash para verificar e instalar atualizações. Na instalação manual, substitua os quatro arquivos e recarregue os plugins. Nos dois casos, recarregue a página completamente.
+For a gallery based on this folder:
 
-Para remover, desabilite o plugin ou remova a pasta `gallery-stashapp` do diretório de plugins, recarregue os plugins e a página. Como não existem alterações no banco, não há migração ou limpeza de vínculos.
+```text
+/collection/trip/
+├── photo01.jpg
+├── video01.mp4
+├── photo02.jpg
+└── video02.mp4
+```
 
-## Limites atuais
+The grid becomes:
 
-- Não cria galerias novas para pastas que só tenham vídeos; melhora a visualização de galerias de pasta que já existem.
-- Não inclui vídeos de subpastas, ZIPs ou arquivos que ainda não foram indexados.
-- Os dados são recarregados ao abrir a grade ou clicar em **Atualizar**. Se executar um scan com a galeria aberta, clique nesse botão depois.
-- Busca e ordenação são locais: as mídias são consultadas em lotes de 250 registros, e só a página visível renderiza miniaturas. Galerias muito grandes ainda precisam carregar seus metadados completos para ordenar e paginar fotos e vídeos juntos.
-- O visualizador usa o player HTML5 do navegador. MP4/WebM e outros formatos dependem do navegador e da configuração de streaming/FFmpeg do Stash. HLS/DASH não recebem uma biblioteca adicional de reprodução; selecione um stream compatível quando necessário.
-- O lightbox e seu slideshow são os originais do Stash. No modo misto, os capítulos são omitidos porque os índices dos capítulos originais contam somente imagens. O slideshow continua usando o intervalo nativo, não a duração dos vídeos.
-- Não implementa os recursos avançados do player de cenas, contagem de reprodução ou histórico de progresso de vídeos. O Stash pode gerar/transcodificar mídia ao atender streams, conforme sua configuração.
-- Se uma cena possui múltiplos arquivos/versões, basta um arquivo estar na pasta para aparecer; a reprodução usa a versão escolhida pelo próprio Stash.
-- O modo misto é somente de visualização na grade (sem seleção em lote), mas mantém as ações nativas disponíveis nas fotos dentro do lightbox. A lista é atualizada ao fechar esse visualizador para refletir alterações.
-- A barra de busca/filtros da lista mista não é a barra completa de filtros avançados do Stash. As operações nativas de seleção, filtros avançados, edição em lote, definição de capa e remoção permanecem disponíveis em **Ferramentas originais**.
+```text
+[ photo01.jpg ] [ video01.mp4 ▶ ] [ photo02.jpg ] [ video02.mp4 ▶ ]
+```
 
-## Diagnóstico
+- Preserves images that already belong to the gallery.
+- Queries videos from the gallery's **exact folder**, by folder ID; does not use partial path matching or include subfolders.
+- Loading the mixed list does not create associations, change metadata, or access the database or server files directly.
+- Reuses Stash's **native cards, wall, and pagination**, with adjustable thumbnail sizes.
+- Opens photos and videos in the **native lightbox**, using on-screen arrows and **← / →** keys, including navigation across pages. **Esc** closes the viewer.
+- Preserves native photo controls: zoom, settings, ratings, and other actions available in your Stash version. Actions you perform with those controls still modify data normally.
+- Enables HTML5 controls and a **Quality** selector using the same stream options as Stash's scene player, with **Original / Direct stream** selected by default when offered.
+- Never assigns image IDs to videos: image ratings, deletion, and image-specific shortcuts do not target scenes.
+- Provides search, media-type filtering, and natural path/title sorting for the mixed list.
+- Keeps an **Original tools** button for selection, advanced filters, bulk editing, cover changes, and removal in the native gallery.
 
-**O plugin não aparece em Settings → Plugins:** confira se a pasta está no diretório de configuração correto e se o `.yml` foi copiado.
+The native tab may still be named **Images** (or its localized equivalent). The plugin replaces its content with the mixed grid; it does not add a scenes tab. Plugin-owned text is in English; Stash's native controls follow Stash's language setting.
 
-**A grade continua igual:** faça uma recarga completa, confira se customizações de interface não estão desabilitadas e procure mensagens `[gallery-stashapp]` no console. Verifique o ponto de extensão citado na seção de compatibilidade.
+## Video quality selection
 
-**Aparecem somente fotos:** confira se a galeria é baseada em pasta e se os vídeos foram indexados nessa pasta exata, sem exclusões. Clique em **Atualizar** depois do scan.
+The lightbox's **Quality** selector uses Stash's `Scene.sceneStreams`, the same source list used by its scene player. It keeps the server's format/resolution labels (for example, MP4 HD (720p), MP4 Full HD (1080p), and HLS) and identifies original-resolution transcodes explicitly.
 
-**Erro de GraphQL/campo desconhecido:** use **Ferramentas originais** e informe a versão do Stash e a mensagem exibida. A versão instalada pode não oferecer o schema esperado.
+Default selection prioritizes:
 
-**Vídeo não reproduz:** tente outro stream no seletor do rodapé; confira FFmpeg e streaming nas configurações do Stash. As teclas ←/→ continuam navegando entre as mídias; use os controles do vídeo para avançar dentro dele.
+1. **Original / Direct stream**, when Stash offers its direct endpoint, regardless of the response order.
+2. A browser-compatible **Original resolution** stream, if no direct endpoint is offered.
+3. The highest compatible resolution offered by Stash. If MIME detection is inconclusive, MP4 is preferred.
 
-## Desenvolvimento e testes
+The current choice remains visible even if there is only one option. Changing quality preserves the pause/play state, playback rate, and position when the selected stream supports native seeking. If the original cannot be decoded, an error is shown instead of silently downgrading quality; select another option manually.
 
-Node.js 20+ é necessário apenas para desenvolver e testar:
+**Direct does not always mean the untouched source file:** Stash may serve a previously generated transcode through its direct endpoint. An **Original resolution** MP4/WebM option is also a transcode, not a promise of identical bitrate or lossless playback. The plugin cannot override Stash's server-side stream configuration.
+
+The gallery still uses the native image lightbox with an HTML5 video element, not the full Video.js scene player. Some HLS/DASH options require that full player. Use **Open scene player** to open it in a separate tab with Stash's complete controls and source selector, without losing your gallery page.
+
+## Requirements and compatibility
+
+- Stash with `PluginApi.patch.instead`/`after`, the **`GalleryImagesPanel`**, **`ImageList`**, **`ImageCard`**, and **`ImageCard.Image`** extension points, native pagination components, and ReactDOM/Apollo exposed through the plugin API.
+- A **folder-based gallery** (`Gallery.folder`). ZIP galleries and galleries without a physical folder retain the original interface.
+- Videos already indexed by a Stash scan. Make sure the library folder is not configured to exclude videos.
+- GraphQL support for `Image.visual_files`, `SceneFilterType.files_filter`, `FileFilterType.parent_folder`, and `Scene.sceneStreams`.
+
+**Checked references:** Stash **v0.31.1** and the `develop` branch at commit `bdee3c8`. The extension point was checked against the stable version's source, and queries were validated against both GraphQL schemas. Automated UI tests use React 17 and a simulated host API; actual playback and integration with your installed version still require testing in Stash. Passing tests do not guarantee compatibility with every version or with other plugins that replace the same grid.
+
+The plugin uses Stash's experimental UI API; updates may require adjustments. The lightbox does not expose a dedicated video-controls extension point, so a limited DOM integration enables controls for plugin-owned video slides and pauses videos when you leave them. Photo rendering and actions remain native.
+
+After opening a gallery, check the extension point in the browser console:
+
+```js
+typeof window.PluginApi?.components?.GalleryImagesPanel
+// Expected: "function"
+```
+
+If this returns `undefined` after the gallery loads, your version does not expose the expected component. Disable the plugin and report your Stash version so the integration can be adapted.
+
+## Updating and removing
+
+For package-source installations, use Stash's plugin manager to check for and install updates. For manual installations, replace all four files and reload plugins. **Fully reload the browser in both cases.**
+
+To remove the plugin, disable it or delete its `gallery-stashapp` directory, then reload plugins and the page. The plugin does not modify the database when loading the mixed list, so there are no migrations or associations to clean up.
+
+## Current limitations
+
+- Does not create galleries for folders that contain only videos; enhances existing folder-based galleries.
+- Does not include videos from subfolders, ZIPs, or files that have not been indexed.
+- Reloads data when you open the grid or click **Refresh**. After scanning new media while a gallery is open, click that button.
+- Search and sorting are local. Media metadata is fetched in batches of 250, and only the visible page renders thumbnails. Very large galleries still need to load all metadata to sort and paginate photos and videos together.
+- Uses the browser's HTML5 video player. MP4/WebM and other formats depend on browser support and Stash's streaming/FFmpeg configuration. No additional playback library is supplied for HLS/DASH; select a compatible stream when necessary.
+- Uses Stash's native lightbox and slideshow. Chapters are omitted in mixed mode because native chapter indexes count only images. The slideshow uses the native interval, not each video's duration.
+- Does not implement advanced scene-player features, play counts, or video progress history. Stash may generate/transcode media when serving streams, depending on its configuration.
+- If a scene has multiple files/versions, one matching file is enough for inclusion; playback uses the version selected by Stash.
+- Mixed mode is view-only in the grid, without bulk selection, but preserves native image actions in the lightbox. The list refreshes when that viewer closes to reflect changes.
+- The mixed-list toolbar is not Stash's full advanced-filter toolbar. Native selection, advanced filters, bulk editing, cover changes, and removal remain available through **Original tools**.
+
+## Troubleshooting
+
+**The plugin does not appear in Settings → Plugins:** check the configuration directory and make sure the `.yml` manifest and its assets were copied together.
+
+**The grid has not changed:** fully reload the page, make sure UI customizations are enabled, and look for `[gallery-stashapp]` messages in the console. Check the extension point described under compatibility.
+
+**Only photos appear:** check that the gallery is folder-based and videos have been indexed in that exact folder, without exclusions. Click **Refresh** after scanning.
+
+**GraphQL/unknown-field error:** use **Original tools** and report your Stash version and the error message. Your installed version may not provide the required schema.
+
+**React error #130:** install the latest package, reload plugins, and fully reload the page. Release `0.2.1` corrected patch argument handling, including React's context argument. If the error persists, report the installed plugin version, Stash version, full console error, and whether other gallery plugins are enabled. Do not assume passing simulated tests proves the installed integration is working.
+
+**Video does not play:** try another option in the **Quality** selector or use **Open scene player**, especially for HLS/DASH. Check Stash's FFmpeg and streaming configuration. The ←/→ keys still navigate between media; use the video controls to seek within a video.
+
+## Development and tests
+
+Node.js 20+ is required only for development and testing:
 
 ```bash
 npm ci
@@ -143,39 +196,40 @@ npm run check
 npm test
 ```
 
-Os testes cobrem consulta paginada, seleção da pasta exata, mídia mista, ordenação, filtros, cancelamento, troca de galeria, erros, retorno à interface original, integração com os componentes nativos e navegação foto → vídeo → foto por teclado/setas, incluindo troca de página. Também verificam que IDs de cenas nunca são fornecidos às ações de imagens. O host de interface é simulado nos testes; zoom, gestos, reprodução e foco devem ser conferidos no navegador com o Stash real.
+Tests cover paginated queries, exact-folder matching, mixed media, sorting, filtering, cancellation, gallery changes, errors, native fallbacks, component integration, and photo → video → photo navigation with keyboard/on-screen arrows, including page changes. They also verify that scene IDs are never supplied to image actions, patch hooks handle React's context argument, direct/original streams take priority, and quality changes preserve playback state. The UI host is simulated; zoom, gestures, playback, and focus must still be checked in a real Stash browser session.
 
-Para validar também as consultas contra um checkout do schema do Stash:
+To validate queries against a local Stash schema checkout as well:
 
 ```bash
-STASH_SCHEMA_DIR=/caminho/stash/graphql/schema npm test
+STASH_SCHEMA_DIR=/path/to/stash/graphql/schema npm test
 ```
 
-Se existir um checkout em `../stash`, ele será usado automaticamente. Sem um schema local e sem a variável acima, apenas esse teste é marcado como ignorado. O CI executa os testes contra os schemas da versão `v0.31.1` e da branch `develop`.
+A checkout at `../stash` is used automatically if present. Without a local schema or the environment variable, only the schema-validation test is skipped. CI runs against the `v0.31.1` and `develop` schemas.
 
-### Publicar um pacote instalável
+### Publishing an installable package
 
-Depois de alterar o plugin:
+After changing the plugin:
 
-1. Atualize a versão em `package.json`/`package-lock.json` e em `gallery-stashapp.yml`.
-2. Atualize `RELEASE_DATE` em `scripts/package.cjs` (UTC, formato `YYYY-MM-DD HH:mm:ss`). O Stash compara essa data ao procurar atualizações.
-3. Execute `npm run package` e `npm test`.
-4. Faça commit de `index.yml`, do ZIP gerado em `dist/` e das alterações de código, e envie para `main`.
+1. Update the version in `package.json`, `package-lock.json`, and `gallery-stashapp.yml`. Keep the README's manifest example in sync.
+2. Update `RELEASE_DATE` in `scripts/package.cjs` (UTC, `YYYY-MM-DD HH:mm:ss`). Stash compares release dates when checking for updates.
+3. Run `npm run package` and `npm test`.
+4. Commit `index.yml`, the generated ZIP in `dist/`, and the source changes, then push to `main`.
 
-O pacote é reproduzível, inclui somente os arquivos de execução e a licença e possui nome baseado em versão e hash. Mantenha ZIPs de releases anteriores disponíveis: um índice em cache pode ainda apontar para eles. A fonte de instalação continua sendo a mesma URL de `index.yml`.
+The package is reproducible, includes only runtime files and the license, and uses a version-and-hash-based filename. Keep previous release ZIPs unchanged and available: a cached index may still point to them. Older archives retain their original language; the latest source and package use English. The installation source remains the same `index.yml` URL.
 
-### Roteiro de teste manual
+### Manual test checklist
 
-1. Use uma galeria de teste com pelo menos uma foto e um vídeo na mesma pasta.
-2. Indexe a pasta, abra a galeria e confira fotos e vídeos na mesma grade.
-3. Verifique que um vídeo de uma subpasta não aparece.
-4. Abra uma foto: confira o lightbox original, seu zoom, configurações e ações de imagem.
-5. Use ←/→ e as setas da tela para navegar foto → vídeo → foto, inclusive entre páginas. Nos vídeos, confira os controles, o stream e que não existem ações de excluir/avaliar imagem; o vídeo deve pausar ao sair dele.
-6. Teste **Esc**, grade/mural, tamanho das miniaturas, busca, tipos, ordenação, paginação e **Ferramentas originais**.
-7. Execute um scan com mídia nova e clique em **Atualizar**.
-8. Abra uma galeria ZIP: ela deve manter a interface original.
-9. Desabilite o plugin e recarregue a página: a interface original deve voltar sem mudanças nos dados (exceto alterações que você tenha feito voluntariamente nas ações nativas).
+1. Use a test gallery with at least one photo and one video in the same folder.
+2. Scan the folder, open the gallery, and check that photos and videos appear together.
+3. Verify that a video from a subfolder does not appear.
+4. Open a photo and check the native lightbox, zoom, settings, and image actions.
+5. Use ←/→ and on-screen arrows to navigate photo → video → photo, including across pages. For videos, check controls, the default **Original / Direct stream** selection, alternative qualities, and the absence of image deletion/rating actions; videos should pause when you leave them. Switch quality while playing and while paused, check position/playback rate, and test **Open scene player**.
+6. Test **Esc**, grid/wall, thumbnail size, search, media types, sorting, pagination, and **Original tools**.
+7. Scan new media and click **Refresh**.
+8. Open a ZIP gallery: it should retain the original interface.
+9. Disable the plugin and reload the page: the original interface should return without data changes, except actions you deliberately performed through native tools.
+10. Check the browser console for errors throughout the test. Do not treat the release as browser-verified until this checklist passes on the installed Stash version.
 
-## Licença
+## License
 
-MIT. Projeto independente, não oficial do Stash.
+MIT. An independent project, not an official Stash plugin.
